@@ -109,3 +109,7 @@ dist/BluettiDesk.exe --exit
 ## Подяки
 
 Протокол і ключі обміну взято з відкритих проєктів під ліцензією MIT: [bluetti-bt-lib](https://github.com/Patrick762/bluetti-bt-lib), [bluetti_mqtt](https://github.com/nhurman/bluetti_mqtt) і [VoltKeeper](https://pypi.org/project/voltkeeper/). Це неофіційний застосунок, Bluetti його не підтримує. Використовуйте на власний ризик.
+
+## Ліцензія
+
+[MIT](LICENSE).
