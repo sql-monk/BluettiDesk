@@ -4,13 +4,15 @@
 
 ## Запуск
 
-Готового exe в репозиторії немає, його треба зібрати. Потрібен [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0):
+Найпростіше завантажити `BluettiDesk.exe` зі сторінки [Releases](https://github.com/sql-monk/BluettiDesk/releases/latest). Потрібні [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) і увімкнений Bluetooth. Збірка розрахована на Windows 10 версії 2004 або новішу, перевірялася на Windows 11. Файл не підписаний, тому SmartScreen може попередити про невідомого видавця.
+
+Або зберіть самі. Для цього потрібен [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0):
 
 ```bash
 dotnet publish src/BluettiDesk/BluettiDesk.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -o dist
 ```
 
-Потім запустіть `dist\BluettiDesk.exe`. Для вже зібраного exe достатньо .NET 10 Desktop Runtime і увімкненого Bluetooth. Збірка розрахована на Windows 10 версії 2004 або новішу, перевірялася на Windows 11.
+Готовий файл буде в `dist\BluettiDesk.exe`.
 
 Під час першого запуску застосунок сам знайде станцію за ім'ям (`AC180…`) і запам'ятає її адресу в `%LOCALAPPDATA%\BluettiDesk\settings.json`. Пароль вводити не треба (див. нижче).
 
