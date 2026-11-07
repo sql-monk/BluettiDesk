@@ -1,0 +1,12 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="SeriesInputBrush" Color="#2A78D6"/>
+    <SolidColorBrush x:Key="SeriesOutputBrush" Color="#EB6834"/>
+    <SolidColorBrush x:Key="ChartGridBrush" Color="#E4E3DF"/>
+    <SolidColorBrush x:Key="ChartTooltipBrush" Color="#FCFCFB"/>
+    <SolidColorBrush x:Key="RingTrackBrush" Color="#E4E3DF"/>
+    <SolidColorBrush x:Key="StatusGoodBrush" Color="#0CA30C"/>
+    <SolidColorBrush x:Key="StatusWarningBrush" Color="#FAB219"/>
+    <SolidColorBrush x:Key="StatusCriticalBrush" Color="#D03B3B"/>
+    <SolidColorBrush x:Key="StatusOffBrush" Color="#9B9A94"/>
+</ResourceDictionary>

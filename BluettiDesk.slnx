@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BluettiDesk.Core/BluettiDesk.Core.csproj" />
+    <Project Path="src/BluettiDesk/BluettiDesk.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BluettiDesk.Tests/BluettiDesk.Tests.csproj" />
+  </Folder>
+</Solution>
