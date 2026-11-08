@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using BluettiDesk.Core.Journal;
+using BluettiDesk.Core.Station;
 
 namespace BluettiDesk.Ui;
 
@@ -17,6 +18,7 @@ public sealed class TimeChart : FrameworkElement
     private const double MarkerRadius = 4;
     private const double LabelSize = 12;
     private const double MinLabelGap = 16;
+    private const double ZoneOpacity = 0.16;
     private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");
     private static readonly Typeface LabelFace = new("Segoe UI");
 
@@ -32,6 +34,8 @@ public sealed class TimeChart : FrameworkElement
     public static readonly DependencyProperty MutedBrushProperty = RenderBrush(nameof(MutedBrush));
     public static readonly DependencyProperty GridBrushProperty = RenderBrush(nameof(GridBrush));
     public static readonly DependencyProperty TooltipBrushProperty = RenderBrush(nameof(TooltipBrush));
+    public static readonly DependencyProperty WarningBrushProperty = RenderBrush(nameof(WarningBrush));
+    public static readonly DependencyProperty CriticalBrushProperty = RenderBrush(nameof(CriticalBrush));
 
     private Point? _pointer;
 
@@ -50,6 +54,12 @@ public sealed class TimeChart : FrameworkElement
     public Brush? GridBrush { get => (Brush?)GetValue(GridBrushProperty); set => SetValue(GridBrushProperty, value); }
 
     public Brush? TooltipBrush { get => (Brush?)GetValue(TooltipBrushProperty); set => SetValue(TooltipBrushProperty, value); }
+
+    /// <summary>Tints the band between the normal and the dangerous limit.</summary>
+    public Brush? WarningBrush { get => (Brush?)GetValue(WarningBrushProperty); set => SetValue(WarningBrushProperty, value); }
+
+    /// <summary>Tints what lies beyond the dangerous limit.</summary>
+    public Brush? CriticalBrush { get => (Brush?)GetValue(CriticalBrushProperty); set => SetValue(CriticalBrushProperty, value); }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
@@ -85,6 +95,11 @@ public sealed class TimeChart : FrameworkElement
         var scale = ChartScale.For(data);
 
         DrawValueAxis(dc, plot, scale);
+        if (data?.Limits is { } limits)
+        {
+            DrawLimits(dc, plot, scale, limits, data);
+        }
+
         DrawTimeAxis(dc, plot, from, to);
 
         if (data is null || data.Series.All(s => s.Points.Count == 0))
@@ -142,6 +157,57 @@ public sealed class TimeChart : FrameworkElement
             dc.DrawLine(grid, new Point(plot.Left, y), new Point(plot.Right, y));
             var label = Text(scale.FormatTick(tick, Ukrainian), MutedBrush);
             dc.DrawText(label, new Point(plot.Left - label.Width - 8, y - label.Height / 2));
+        }
+    }
+
+    /// <summary>
+    /// Tints the warning and danger zones above and below the normal range and dashes its edges, so a line that leaves
+    /// the range stands out without changing its colour. A danger zone is as deep as a warning zone, or deeper where the
+    /// data goes further, so an empty zone does not fill the chart. Nothing is tinted where the source is absent.
+    /// </summary>
+    private void DrawLimits(DrawingContext dc, Rect plot, ChartScale scale, Limits limits, ChartData data)
+    {
+        var floor = Math.Max(scale.Min, limits.AbsentBelow);
+        var present = data.Series.SelectMany(s => s.Points).Select(p => p.Value).Where(v => v >= limits.AbsentBelow).ToList();
+        var highest = present.Count > 0 ? present.Max() : limits.CriticalHigh;
+        var lowest = present.Count > 0 ? present.Min() : limits.CriticalLow;
+
+        Zone(limits.CriticalHigh, Math.Max(highest, 2 * limits.CriticalHigh - limits.WarnHigh), CriticalBrush);
+        Zone(limits.WarnHigh, limits.CriticalHigh, WarningBrush);
+        Zone(limits.CriticalLow, limits.WarnLow, WarningBrush);
+        Zone(Math.Min(lowest, 2 * limits.CriticalLow - limits.WarnLow), limits.CriticalLow, CriticalBrush);
+
+        var edge = new Pen(MutedBrush, 1) { DashStyle = new DashStyle([4, 3], 0) };
+        edge.Freeze();
+        foreach (var (value, above) in new[] { (limits.WarnHigh, true), (limits.WarnLow, false) })
+        {
+            if (value <= floor || value > scale.Max)
+            {
+                continue;
+            }
+
+            // On the left, away from the latest values, and on a backing so that a line passing by does not hide it.
+            var y = Math.Round(YOf(plot, value, scale)) + 0.5;
+            dc.DrawLine(edge, new Point(plot.Left, y), new Point(plot.Right, y));
+            var label = Text(FormatValue(value), MutedBrush);
+            var box = new Rect(plot.Left + 4, above ? y - label.Height - 2 : y + 2, label.Width + 6, label.Height);
+            dc.DrawRoundedRectangle(TooltipBrush, null, box, 3, 3);
+            dc.DrawText(label, new Point(box.Left + 3, box.Top));
+        }
+
+        void Zone(double from, double to, Brush? brush)
+        {
+            var low = Math.Max(from, floor);
+            var high = Math.Min(to, scale.Max);
+            if (brush is null || high <= low)
+            {
+                return;
+            }
+
+            var tint = brush.CloneCurrentValue();
+            tint.Opacity = ZoneOpacity;
+            tint.Freeze();
+            dc.DrawRectangle(tint, null, new Rect(new Point(plot.Left, YOf(plot, high, scale)), new Point(plot.Right, YOf(plot, low, scale))));
         }
     }
 

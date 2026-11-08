@@ -4,6 +4,9 @@ namespace BluettiDesk.Core.Station;
 public sealed record LogField(string Column, string Title, string Unit, bool IsInteger, Func<RegisterImage, double> Read)
 {
     public string DisplayName => Unit.Length == 0 ? Title : $"{Title}, {Unit}";
+
+    /// <summary>Normal and dangerous ranges, when the value has them. The journal charts shade what lies outside.</summary>
+    public Limits? Limits { get; init; }
 }
 
 /// <summary>
@@ -30,8 +33,8 @@ public static class Ac180pLog
             Scaled("battery_a", "Струм батареї", "А", 101, 0.1),
             U16("health_percent", "Здоров'я батареї", "%", 6006),
             U16("cycle_count", "Цикли заряду", "", 6008),
-            Temperature("temp_1_c", "Температура батареї 1", 6312),
-            Temperature("temp_2_c", "Температура батареї 2", 6313),
+            Temperature("temp_1_c", "Температура батареї 1", 6312) with { Limits = StationLimits.Temperature },
+            Temperature("temp_2_c", "Температура батареї 2", 6313) with { Limits = StationLimits.Temperature },
             new("cell_spread_mv", "Розкид напруги комірок", "мВ", true, CellSpread),
 
             S32("ac_in_w", "Вхід AC", "Вт", 146),
@@ -40,10 +43,13 @@ public static class Ac180pLog
             U32("dc_out_w", "Вихід DC", "Вт", 140),
             S32("inverter_total_w", "Інвертор, сумарно", "Вт", 148),
 
-            Scaled("ac_in_v", "Вхід AC: напруга", "В", 1314, 0.1),
+            Scaled("ac_in_v", "Вхід AC: напруга", "В", 1314, 0.1) with { Limits = StationLimits.MainsVoltage },
             Scaled("ac_in_a", "Вхід AC: струм", "А", 1315, 0.1),
-            Scaled("ac_in_hz", "Вхід AC: частота", "Гц", 1300, 0.1),
+            Scaled("ac_in_hz", "Вхід AC: частота", "Гц", 1300, 0.1) with { Limits = StationLimits.MainsFrequency },
             S16("ac_in_phase_w", "Вхід AC: потужність фази", "Вт", 1313),
+
+            // Rose to 1 with a grid of 280-296 V and was 0 without a grid. Seen during one overvoltage only, so still a guess.
+            U16("ac_in_alarm", "Вхід AC: прапорець 126 (схоже, аварія мережі)", "", 126),
 
             Scaled("dc_in_v", "Вхід DC: напруга", "В", 1213, 0.1),
             Scaled("dc_in_a", "Вхід DC: струм", "А", 1214, 0.1),
@@ -51,16 +57,16 @@ public static class Ac180pLog
             LowByte("dc_in_status", "Вхід DC: код стану", 1210),
             LowByte("dc_in_type", "Вхід DC: код типу джерела", 1211),
 
-            Scaled("ac_out_v", "Вихід AC: напруга", "В", 1431, 0.1),
+            Scaled("ac_out_v", "Вихід AC: напруга", "В", 1431, 0.1) with { Limits = StationLimits.MainsVoltage },
             Scaled("ac_out_a", "Вихід AC: струм", "А", 1432, 0.1),
             U16("ac_out_phase_w", "Вихід AC: потужність фази", "Вт", 1430),
             U32("ac_load_total_w", "Вихід AC: навантаження, сумарно", "Вт", 1420),
 
             LowByte("inverter_status", "Інвертор: код стану", 1509),
             U16("inverter_w", "Інвертор: потужність", "Вт", 1510),
-            Scaled("inverter_v", "Інвертор: напруга", "В", 1511, 0.1),
+            Scaled("inverter_v", "Інвертор: напруга", "В", 1511, 0.1) with { Limits = StationLimits.MainsVoltage },
             Scaled("inverter_a", "Інвертор: струм", "А", 1512, 0.1),
-            Scaled("inverter_hz", "Інвертор: частота", "Гц", 1500, 0.1),
+            Scaled("inverter_hz", "Інвертор: частота", "Гц", 1500, 0.1) with { Limits = StationLimits.MainsFrequency },
 
             U32("dc_load_total_w", "Вихід DC: навантаження, сумарно", "Вт", 1400),
             U16("dc_5v_w", "Вихід 5 В: потужність", "Вт", 1404),
@@ -86,7 +92,7 @@ public static class Ac180pLog
 
         for (var i = 0; i < CellCount; i++)
         {
-            fields.Add(U16($"cell_{i + 1}_mv", $"Комірка {i + 1}", "мВ", FirstCell + i));
+            fields.Add(U16($"cell_{i + 1}_mv", $"Комірка {i + 1}", "мВ", FirstCell + i) with { Limits = StationLimits.CellVoltage.Scaled(1000) });
         }
 
         return fields;

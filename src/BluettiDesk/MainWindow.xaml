@@ -13,6 +13,7 @@
     <Window.Resources>
         <ui:EqualsConverter x:Key="Equals" />
         <ui:NullToCollapsedConverter x:Key="NullToCollapsed" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisible" />
     </Window.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -62,13 +63,58 @@
                         VerticalAlignment="Center" />
             </Grid>
 
-            <!-- Why there is no connection, or what failed -->
-            <Border Grid.Row="1"
-                    Style="{StaticResource Card}"
-                    BorderBrush="{DynamicResource StatusWarningBrush}"
-                    Visibility="{Binding ErrorText, Converter={StaticResource NullToCollapsed}}">
-                <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-            </Border>
+            <StackPanel Grid.Row="1">
+                <!-- Why there is no connection, or what failed -->
+                <Border Style="{StaticResource Card}"
+                        BorderBrush="{DynamicResource StatusWarningBrush}"
+                        Visibility="{Binding ErrorText, Converter={StaticResource NullToCollapsed}}">
+                    <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                </Border>
+
+                <!-- What is out of range right now, worst first -->
+                <ItemsControl ItemsSource="{Binding Alerts}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border CornerRadius="8" BorderThickness="1" Padding="14,10" Margin="6,4">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{DynamicResource AlertWarningBackgroundBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource StatusWarningBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Key}" Value="Critical">
+                                                <Setter Property="Background" Value="{DynamicResource AlertCriticalBackgroundBrush}" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource StatusCriticalBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE7BA;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="20" Margin="0,1,12,0" VerticalAlignment="Top">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource StatusWarningInkBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Key}" Value="Critical">
+                                                        <Setter Property="Foreground" Value="{DynamicResource StatusCriticalBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        <TextBlock Text="{Binding Detail}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
 
             <TabControl Grid.Row="2" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}" Margin="0,2,0,0">
                 <TabItem Header="Огляд">
@@ -116,11 +162,20 @@
                         </Border>
 
                         <!-- Inputs -->
-                        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource Card}">
+                        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource StatusCard}" Tag="{Binding AcInputCardKey}">
                             <StackPanel>
                                 <TextBlock Text="Вхід AC" Style="{StaticResource CardTitle}" />
                                 <TextBlock Text="{Binding AcInputPower}" Style="{StaticResource BigValue}" />
-                                <TextBlock Text="{Binding AcInputDetail}" Style="{StaticResource Detail}" />
+                                <TextBlock Text="Немає живлення" Style="{StaticResource Detail}" Visibility="{Binding MainsAbsent, Converter={StaticResource BoolToVisible}}" />
+                                <StackPanel Orientation="Horizontal" Visibility="{Binding MainsPresent, Converter={StaticResource BoolToVisible}}">
+                                    <Border Style="{StaticResource Pill}" Tag="{Binding AcInputVoltageKey}">
+                                        <TextBlock Text="{Binding AcInputVoltageText}" AutomationProperties.Name="Напруга мережі" />
+                                    </Border>
+                                    <TextBlock Text="{Binding AcInputCurrentText}" Style="{StaticResource Detail}" VerticalAlignment="Center" />
+                                    <Border Style="{StaticResource Pill}" Tag="{Binding AcInputFrequencyKey}">
+                                        <TextBlock Text="{Binding AcInputFrequencyText}" AutomationProperties.Name="Частота мережі" />
+                                    </Border>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                         <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource Card}">
@@ -132,12 +187,21 @@
                         </Border>
 
                         <!-- Outputs, each with its own switch -->
-                        <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource Card}">
+                        <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource StatusCard}" Tag="{Binding AcOutputCardKey}">
                             <Grid>
                                 <StackPanel>
                                     <TextBlock Text="Вихід AC" Style="{StaticResource CardTitle}" />
                                     <TextBlock Text="{Binding AcOutputPower}" Style="{StaticResource BigValue}" />
-                                    <TextBlock Text="{Binding AcOutputDetail}" Style="{StaticResource Detail}" />
+                                    <TextBlock Text="Вимкнено" Style="{StaticResource Detail}" Visibility="{Binding AcOutputOff, Converter={StaticResource BoolToVisible}}" />
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding AcOutputLive, Converter={StaticResource BoolToVisible}}">
+                                        <Border Style="{StaticResource Pill}" Tag="{Binding AcOutputVoltageKey}">
+                                            <TextBlock Text="{Binding AcOutputVoltageText}" AutomationProperties.Name="Напруга на виході AC" />
+                                        </Border>
+                                        <TextBlock Text="{Binding AcOutputCurrentText}" Style="{StaticResource Detail}" VerticalAlignment="Center" />
+                                        <Border Style="{StaticResource Pill}" Tag="{Binding AcOutputFrequencyKey}">
+                                            <TextBlock Text="{Binding AcOutputFrequencyText}" AutomationProperties.Name="Частота на виході AC" />
+                                        </Border>
+                                    </StackPanel>
                                 </StackPanel>
                                 <ToggleButton Style="{StaticResource Switch}"
                                               IsChecked="{Binding AcOutputOn, Mode=TwoWay}"
@@ -232,7 +296,7 @@
                         </Border>
 
                         <!-- Battery -->
-                        <Border Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource Card}">
+                        <Border Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource StatusCard}" Tag="{Binding BatteryCardKey}">
                             <StackPanel>
                                 <TextBlock Text="Батарея" Style="{StaticResource SectionTitle}" />
                                 <UniformGrid Columns="4" Margin="0,12,0,0">
@@ -246,11 +310,15 @@
                                     </StackPanel>
                                     <StackPanel>
                                         <TextBlock Text="Температура" Style="{StaticResource CardTitle}" />
-                                        <TextBlock Text="{Binding TemperatureText}" Style="{StaticResource Stat}" />
+                                        <Border Style="{StaticResource StatPill}" Tag="{Binding TemperatureKey}">
+                                            <TextBlock Text="{Binding TemperatureText}" />
+                                        </Border>
                                     </StackPanel>
                                     <StackPanel>
                                         <TextBlock Text="Розкид комірок" Style="{StaticResource CardTitle}" />
-                                        <TextBlock Text="{Binding CellSpreadText}" Style="{StaticResource Stat}" />
+                                        <Border Style="{StaticResource StatPill}" Tag="{Binding CellSpreadKey}">
+                                            <TextBlock Text="{Binding CellSpreadText}" />
+                                        </Border>
                                     </StackPanel>
                                 </UniformGrid>
                                 <TextBlock Text="Напруга комірок, В" Style="{StaticResource CardTitle}" Margin="0,12,0,4" />
@@ -262,7 +330,9 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding}" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            <Border Style="{StaticResource CellPill}" Tag="{Binding Key}">
+                                                <TextBlock Text="{Binding Text}" />
+                                            </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -275,6 +345,7 @@
                 <TabItem Header="Журнал" IsEnabled="{Binding HasJournal}">
                     <Grid DataContext="{Binding Journal}" Margin="0,6,0,0">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -334,8 +405,38 @@
                             </Grid>
                         </Border>
 
-                        <!-- Any other logged value -->
+                        <!-- Mains voltage: lowest and highest per point, so that a short spike or dip is not averaged away -->
                         <Border Grid.Row="2" Style="{StaticResource Card}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="200" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Напруга мережі, В" Style="{StaticResource SectionTitle}" Margin="0,0,20,0" />
+                                    <Rectangle Width="16" Height="2" RadiusX="1" RadiusY="1" Fill="{DynamicResource SeriesInputBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Найбільша" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                                    <Rectangle Width="16" Height="2" RadiusX="1" RadiusY="1" Fill="{DynamicResource SeriesOutputBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Найменша" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <ui:TimeChart Grid.Row="1"
+                                              Margin="0,8,0,0"
+                                              Data="{Binding MainsChart}"
+                                              PrimaryBrush="{DynamicResource SeriesInputBrush}"
+                                              SecondaryBrush="{DynamicResource SeriesOutputBrush}"
+                                              TextBrush="{DynamicResource TextFillColorPrimaryBrush}"
+                                              MutedBrush="{DynamicResource TextFillColorSecondaryBrush}"
+                                              GridBrush="{DynamicResource ChartGridBrush}"
+                                              TooltipBrush="{DynamicResource ChartTooltipBrush}"
+                                              WarningBrush="{DynamicResource StatusWarningBrush}"
+                                              CriticalBrush="{DynamicResource StatusCriticalBrush}" />
+                                <TextBlock Grid.Row="2" Text="{Binding MainsLimitsText}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Any other logged value -->
+                        <Border Grid.Row="3" Style="{StaticResource Card}">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -359,7 +460,9 @@
                                               TextBrush="{DynamicResource TextFillColorPrimaryBrush}"
                                               MutedBrush="{DynamicResource TextFillColorSecondaryBrush}"
                                               GridBrush="{DynamicResource ChartGridBrush}"
-                                              TooltipBrush="{DynamicResource ChartTooltipBrush}" />
+                                              TooltipBrush="{DynamicResource ChartTooltipBrush}"
+                                              WarningBrush="{DynamicResource StatusWarningBrush}"
+                                              CriticalBrush="{DynamicResource StatusCriticalBrush}" />
                                 <StackPanel Grid.Row="2" Margin="0,8,0,0">
                                     <TextBlock Style="{StaticResource Detail}">
                                         <Run Text="{Binding InfoText, Mode=OneWay}" />

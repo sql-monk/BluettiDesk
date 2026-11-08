@@ -14,12 +14,10 @@ namespace BluettiDesk.Ui;
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private const string NoValue = "—";
-    private const int LowSoc = 20;
-    private const int CriticalSoc = 10;
-    private const double MinMainsVoltage = 80;
     private const int JournalTab = 1;
     private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");
     private static readonly TimeSpan CommandErrorDuration = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan AlertQuietPeriod = TimeSpan.FromMinutes(15);
 
     private readonly StationMonitor _monitor;
     private readonly Dispatcher _dispatcher;
@@ -27,7 +25,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly IAutoStart? _autoStart;
     private readonly StationJournal? _journal;
     private readonly PowerHistory _history = new();
+    private readonly AlertAnnouncer _announcer = new(AlertQuietPeriod);
     private StationStatus? _status;
+    private StationHealth _health = StationHealth.Unknown;
     private ConnectionState _connection = new(ConnectionPhase.Stopped);
     private ChartData _liveChart;
     private DateTime? _lastUpdate;
@@ -69,6 +69,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>A critical alert has just begun. Raised at most once per kind in <see cref="AlertQuietPeriod"/>.</summary>
+    public event Action<StationAlert>? AlertRaised;
 
     public JournalViewModel? Journal { get; }
 
@@ -120,7 +123,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string TrayText => _status is { } status && IsConnected
         ? $"{TitleText}: {status.SocPercent} %, вихід {status.AcOutputWatts + status.DcOutputWatts} Вт"
+            + (Health.Alerts.Count > 0 ? $"\n{Health.Alerts[0].Title}" : string.Empty)
         : $"{TitleText}: {ConnectionText.ToLower(Ukrainian)}";
+
+    /// <summary>What is out of range right now.</summary>
+    public IReadOnlyList<AlertView> Alerts => Health.Alerts.Select(a => new AlertView(a.Title, a.Detail, Key(a.Severity))).ToList();
+
+    public bool HasAlerts => Health.Alerts.Count > 0;
 
     public string TitleText => _status is { Model.Length: > 0 } status ? status.Model : "AC180P";
 
@@ -133,14 +142,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string SocStatusKey => _status?.SocPercent switch
     {
         null => "Off",
-        <= CriticalSoc => "Critical",
-        <= LowSoc => "Warning",
+        <= StationLimits.CriticalSoc => "Critical",
+        <= StationLimits.LowSoc => "Warning",
         _ => "Good",
     };
 
     public string ActivityText => _status is not { } status
         ? NoValue
-        : status.SocPercent <= LowSoc && status.Activity != BatteryActivity.Charging
+        : status.SocPercent <= StationLimits.LowSoc && status.Activity != BatteryActivity.Charging
             ? $"{Activity(status.Activity)} · низький заряд"
             : Activity(status.Activity);
 
@@ -165,11 +174,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string DcOutputPower => Watts(_status?.DcOutputWatts);
 
-    public string AcInputDetail => _status is not { } status
-        ? string.Empty
-        : status.AcInputVoltage < MinMainsVoltage
-            ? "Немає живлення"
-            : $"{Number(status.AcInputVoltage)} В · {Number(status.AcInputCurrent)} А · {Number(status.AcInputFrequency)} Гц";
+    public bool MainsPresent => _status is { } status && status.AcInputVoltage >= StationLimits.MainsPresentVoltage;
+
+    public bool MainsAbsent => _status is { } status && status.AcInputVoltage < StationLimits.MainsPresentVoltage;
+
+    public string AcInputVoltageText => _status is { } status ? $"{Number(status.AcInputVoltage)} В" : string.Empty;
+
+    public string AcInputCurrentText => _status is { } status ? $" · {Number(status.AcInputCurrent)} А · " : string.Empty;
+
+    public string AcInputFrequencyText => _status is { } status ? $"{Number(status.AcInputFrequency)} Гц" : string.Empty;
+
+    public string AcInputVoltageKey => Key(Health.MainsVoltage);
+
+    public string AcInputFrequencyKey => Key(Health.MainsFrequency);
+
+    public string AcInputCardKey => Key(Worst(Health.MainsVoltage, Health.MainsFrequency));
 
     public string DcInputDetail => _status is not { } status
         ? string.Empty
@@ -177,11 +196,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
             ? "Не підключено"
             : $"{Number(status.DcInputVoltage)} В · {Number(status.DcInputCurrent)} А";
 
-    public string AcOutputDetail => _status is not { } status
-        ? string.Empty
-        : status.AcOutputOn
-            ? $"{Number(status.AcOutputVoltage)} В · {Number(status.AcOutputCurrent)} А · {Number(status.AcOutputFrequency)} Гц"
-            : "Вимкнено";
+    public bool AcOutputLive => _status is { AcOutputOn: true };
+
+    public bool AcOutputOff => _status is { AcOutputOn: false };
+
+    public string AcOutputVoltageText => _status is { } status ? $"{Number(status.AcOutputVoltage)} В" : string.Empty;
+
+    public string AcOutputCurrentText => _status is { } status ? $" · {Number(status.AcOutputCurrent)} А · " : string.Empty;
+
+    public string AcOutputFrequencyText => _status is { } status ? $"{Number(status.AcOutputFrequency)} Гц" : string.Empty;
+
+    public string AcOutputVoltageKey => Key(Health.OutputVoltage);
+
+    public string AcOutputFrequencyKey => Key(Health.OutputFrequency);
+
+    public string AcOutputCardKey => Key(Worst(Health.OutputVoltage, Health.OutputFrequency));
 
     public string DcOutputDetail => _status is not { } status ? string.Empty : status.DcOutputOn ? "Увімкнено" : "Вимкнено";
 
@@ -245,13 +274,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ? $"{battery.Temperatures.Min()}–{battery.Temperatures.Max()} °C"
         : NoValue;
 
+    public string TemperatureKey => Key(Health.Temperature);
+
     public string CellSpreadText => _status?.Battery is { } battery
         ? $"{Math.Round((battery.CellVoltages.Max() - battery.CellVoltages.Min()) * 1000)} мВ"
         : NoValue;
 
-    public IReadOnlyList<string> CellVoltages => _status?.Battery is { } battery
-        ? battery.CellVoltages.Select(v => v.ToString("0.000", Ukrainian)).ToList()
+    public string CellSpreadKey => Key(Health.CellBalance);
+
+    public IReadOnlyList<CellView> CellVoltages => _status?.Battery is { } battery
+        ? battery.CellVoltages
+            .Select((v, i) => new CellView(v.ToString("0.000", Ukrainian), Key(i < Health.Cells.Count ? Health.Cells[i] : Severity.Normal)))
+            .ToList()
         : [];
+
+    public string BatteryCardKey => Key(Health.Cells.Aggregate(Worst(Health.Temperature, Health.CellBalance), Worst));
 
     public string FirmwareText => _status?.Battery is { } battery
         ? $"Прошивка: {string.Join(" · ", battery.InverterFirmware)} · BMS {battery.BatteryFirmware}"
@@ -282,6 +319,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     }
 
     private static string Number(double value) => value.ToString("0.0", Ukrainian);
+
+    private static string Key(Severity severity) => severity.ToString();
+
+    private static Severity Worst(Severity a, Severity b) => a > b ? a : b;
+
+    /// <summary>The checks of the latest report, or none while disconnected: the last values may be stale.</summary>
+    private StationHealth Health => IsConnected ? _health : StationHealth.Unknown;
 
     private static string Watts(int? watts) => watts is { } value ? $"{value} Вт" : NoValue;
 
@@ -352,7 +396,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void OnStatus(StationStatus status)
     {
         _status = status;
+        _health = StationChecks.Evaluate(status, _health);
         _lastUpdate = DateTime.Now;
+        foreach (var alert in _announcer.Update(Health.Alerts, _lastUpdate.Value))
+        {
+            AlertRaised?.Invoke(alert);
+        }
+
         _history.Add(new PowerPoint(
             _lastUpdate.Value,
             status.AcInputWatts + status.DcInputWatts,
@@ -364,6 +414,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void OnConnection(ConnectionState state)
     {
         _connection = state;
+        if (!IsConnected)
+        {
+            _announcer.Update([], DateTime.Now);
+        }
+
         RefreshBindings();
     }
 
@@ -395,3 +450,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void RefreshBindings() =>
         _dispatcher.BeginInvoke(() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty)));
 }
+
+public sealed record AlertView(string Title, string Detail, string Key);
+
+public sealed record CellView(string Text, string Key);

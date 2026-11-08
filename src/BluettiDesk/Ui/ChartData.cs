@@ -1,5 +1,6 @@
 using System.Globalization;
 using BluettiDesk.Core.Journal;
+using BluettiDesk.Core.Station;
 
 namespace BluettiDesk.Ui;
 
@@ -17,6 +18,9 @@ public sealed record ChartData(DateTime From, DateTime To, IReadOnlyList<ChartSe
 
     /// <summary>Whole-number values, like an on/off flag, should not get ticks such as 0,25.</summary>
     public double MinStep { get; init; }
+
+    /// <summary>The chart shades what lies outside the normal range and keeps that range in view.</summary>
+    public Limits? Limits { get; init; }
 }
 
 /// <summary>The value axis: round numbers from <see cref="Min"/> to <see cref="Max"/>.</summary>
@@ -29,6 +33,13 @@ public readonly record struct ChartScale(double Min, double Max, double Step)
         var points = data?.Series.SelectMany(s => s.Points).ToList() ?? [];
         var low = points.Count > 0 ? points.Min(p => p.Value) : 0;
         var high = points.Count > 0 ? points.Max(p => p.Value) : 0;
+
+        // A value is only "high" or "low" against its range, so the range stays on the axis.
+        if (data?.Limits is { } limits && points.Count > 0)
+        {
+            low = Math.Min(low, limits.WarnLow);
+            high = Math.Max(high, limits.WarnHigh);
+        }
 
         // Keep zero on the axis unless the values all sit high above it, like a battery voltage.
         if (low >= 0 && low < high / 2)

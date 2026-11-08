@@ -9,4 +9,9 @@
     <SolidColorBrush x:Key="StatusWarningBrush" Color="#FAB219"/>
     <SolidColorBrush x:Key="StatusCriticalBrush" Color="#D03B3B"/>
     <SolidColorBrush x:Key="StatusOffBrush" Color="#9B9A94"/>
+    <SolidColorBrush x:Key="AlertWarningBackgroundBrush" Color="#FFF4DB"/>
+    <SolidColorBrush x:Key="AlertCriticalBackgroundBrush" Color="#FDECEC"/>
+    <SolidColorBrush x:Key="StatusWarningInkBrush" Color="#A86A00"/>
+    <SolidColorBrush x:Key="OnWarningBrush" Color="#1A1A19"/>
+    <SolidColorBrush x:Key="OnCriticalBrush" Color="#FFFFFF"/>
 </ResourceDictionary>

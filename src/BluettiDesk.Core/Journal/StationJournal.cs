@@ -10,6 +10,8 @@ public readonly record struct TimePoint(DateTime Time, double Value);
 
 public readonly record struct PowerPoint(DateTime Time, double InputWatts, double OutputWatts);
 
+public readonly record struct RangePoint(DateTime Time, double Min, double Max);
+
 public sealed record JournalInfo(DateTime? FirstSample, long SampleCount, long SizeBytes);
 
 /// <summary>
@@ -117,6 +119,25 @@ public sealed class StationJournal : IDisposable
             if (!reader.IsDBNull(1))
             {
                 points.Add(new TimePoint(ToLocal(reader.GetInt64(0)), reader.GetDouble(1)));
+            }
+        });
+        return points;
+    }
+
+    /// <summary>Lowest and highest value of one field per time bucket, oldest first: an average would hide a short spike.</summary>
+    public IReadOnlyList<RangePoint> QueryRange(LogField field, DateTime fromUtc, DateTime toUtc, TimeSpan bucket)
+    {
+        if (!Fields.Contains(field))
+        {
+            throw new ArgumentException($"Unknown field: {field.Column}", nameof(field));
+        }
+
+        var points = new List<RangePoint>();
+        Query($"MIN({field.Column}), MAX({field.Column})", fromUtc, toUtc, bucket, reader =>
+        {
+            if (!reader.IsDBNull(1) && !reader.IsDBNull(2))
+            {
+                points.Add(new RangePoint(ToLocal(reader.GetInt64(0)), reader.GetDouble(1), reader.GetDouble(2)));
             }
         });
         return points;

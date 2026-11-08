@@ -35,7 +35,9 @@ internal sealed class TrayIcon : IDisposable
             Visible = true,
         };
         _icon.DoubleClick += (_, _) => open();
+        _icon.BalloonTipClicked += (_, _) => open();
         viewModel.PropertyChanged += (_, _) => Refresh();
+        viewModel.AlertRaised += alert => _icon.ShowBalloonTip(10000, alert.Title, alert.Detail.Length > 0 ? alert.Detail : " ", ToolTipIcon.Warning);
         Refresh();
     }
 

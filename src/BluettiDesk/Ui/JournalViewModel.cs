@@ -27,6 +27,8 @@ public sealed class JournalViewModel : INotifyPropertyChanged
     private const double OverviewMinTopWatts = 100;
     private const string Watts = "Вт";
     private const string Percent = "%";
+    private const string Volts = "В";
+    private const string MainsColumn = "ac_in_v";
     private const int Megabyte = 1024 * 1024;
     private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(1);
@@ -35,10 +37,12 @@ public sealed class JournalViewModel : INotifyPropertyChanged
     private readonly Dispatcher _dispatcher;
     private readonly Func<string, string?> _askExportPath;
     private readonly DispatcherTimer _refresh;
+    private readonly LogField? _mainsField;
     private JournalRange _range = JournalRange.Day;
     private LogField _field;
     private ChartData? _powerChart;
     private ChartData? _fieldChart;
+    private ChartData? _mainsChart;
     private string _infoText = string.Empty;
     private string _statusText = string.Empty;
     private string _bucketText = string.Empty;
@@ -51,6 +55,7 @@ public sealed class JournalViewModel : INotifyPropertyChanged
         _dispatcher = dispatcher;
         _askExportPath = askExportPath;
         _field = journal.Fields[0];
+        _mainsField = journal.Fields.FirstOrDefault(f => f.Column == MainsColumn);
         _refresh = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = RefreshInterval };
         _refresh.Tick += (_, _) => _ = ReloadAsync();
         ExportCommand = new RelayCommand(() => _ = ExportAsync());
@@ -95,6 +100,11 @@ public sealed class JournalViewModel : INotifyPropertyChanged
 
     public ChartData? FieldChart => _fieldChart;
 
+    public ChartData? MainsChart => _mainsChart;
+
+    public string MainsLimitsText =>
+        $"Норма {StationChecks.Range(StationLimits.MainsVoltage, "0")} В. Жовтим позначено незвичну напругу, червоним небезпечну: вище {StationLimits.MainsVoltage.CriticalHigh:0} В станція відключається від мережі. Біля нуля мережі не було.";
+
     public string InfoText => _infoText;
 
     public string StatusText => _statusText;
@@ -127,7 +137,7 @@ public sealed class JournalViewModel : INotifyPropertyChanged
 
     private static ChartData WithAxisRules(ChartData data, LogField field)
     {
-        var whole = data with { MinStep = field.IsInteger ? 1 : 0 };
+        var whole = data with { MinStep = field.IsInteger ? 1 : 0, Limits = field.Limits };
         return field.Unit switch
         {
             Percent => whole with { AxisMin = 0, AxisMax = 100 },
@@ -164,7 +174,8 @@ public sealed class JournalViewModel : INotifyPropertyChanged
                 var bucket = BucketFor(to - from);
                 return (Info: info, From: from.ToLocalTime(), To: to.ToLocalTime(), Bucket: bucket,
                     Power: _journal.QueryPower(from, to, bucket),
-                    Values: _journal.QueryAverages(field, from, to, bucket));
+                    Values: _journal.QueryAverages(field, from, to, bucket),
+                    Mains: _mainsField is { } mains ? _journal.QueryRange(mains, from, to, bucket) : []);
             });
 
             // A newer choice has been made while this one was loading.
@@ -185,6 +196,17 @@ public sealed class JournalViewModel : INotifyPropertyChanged
             {
                 AxisMin = 0,
                 MinTop = OverviewMinTopWatts,
+            };
+            _mainsChart = new ChartData(
+                result.From,
+                result.To,
+                [
+                    new ChartSeries("Найбільша", Volts, result.Mains.Select(p => new TimePoint(p.Time, p.Max)).ToList()),
+                    new ChartSeries("Найменша", Volts, result.Mains.Select(p => new TimePoint(p.Time, p.Min)).ToList()),
+                ],
+                maxGap)
+            {
+                Limits = StationLimits.MainsVoltage,
             };
             _fieldChart = WithAxisRules(new ChartData(result.From, result.To, [new ChartSeries(field.Title, field.Unit, result.Values)], maxGap), field);
             _bucketText = result.Bucket > StationJournal.SampleInterval ? $"Точка на графіку: середнє за {DescribeBucket(result.Bucket)}" : string.Empty;

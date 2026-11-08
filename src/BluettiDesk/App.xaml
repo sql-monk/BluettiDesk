@@ -13,6 +13,55 @@
             <Setter Property="Margin" Value="6" />
         </Style>
 
+        <!-- A card whose Tag says how its values are: "Warning" or "Critical" colour the frame -->
+        <Style x:Key="StatusCard" TargetType="Border" BasedOn="{StaticResource Card}">
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="Warning">
+                    <Setter Property="BorderBrush" Value="{DynamicResource StatusWarningBrush}" />
+                    <Setter Property="BorderThickness" Value="2" />
+                    <Setter Property="Padding" Value="15,13" />
+                </Trigger>
+                <Trigger Property="Tag" Value="Critical">
+                    <Setter Property="BorderBrush" Value="{DynamicResource StatusCriticalBrush}" />
+                    <Setter Property="BorderThickness" Value="2" />
+                    <Setter Property="Padding" Value="15,13" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- A value that lights up when it leaves its range. The negative margin keeps normal text where plain text would be -->
+        <Style x:Key="Pill" TargetType="Border">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="5,1" />
+            <Setter Property="Margin" Value="-5,0,-5,0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="TextElement.FontSize" Value="12" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="Warning">
+                    <Setter Property="Background" Value="{DynamicResource StatusWarningBrush}" />
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource OnWarningBrush}" />
+                    <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+                </Trigger>
+                <Trigger Property="Tag" Value="Critical">
+                    <Setter Property="Background" Value="{DynamicResource StatusCriticalBrush}" />
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource OnCriticalBrush}" />
+                    <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StatPill" TargetType="Border" BasedOn="{StaticResource Pill}">
+            <Setter Property="TextElement.FontSize" Value="18" />
+            <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="CellPill" TargetType="Border" BasedOn="{StaticResource Pill}">
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
         <Style x:Key="CardTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />

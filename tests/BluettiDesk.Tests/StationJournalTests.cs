@@ -55,6 +55,23 @@ public sealed class StationJournalTests : IDisposable
     }
 
     [Fact]
+    public void ARangeKeepsTheSpikeThatAnAverageWouldHide()
+    {
+        using var journal = new StationJournal(DbPath);
+        var mains = Ac180pLog.Fields.Single(f => f.Column == "ac_in_v");
+        foreach (var (second, raw) in new[] { (0, 2300), (10, 2900), (20, 2310), (60, 2280) })
+        {
+            var image = Image(soc: 30, acOut: 100);
+            image.Store(1314, new[] { (ushort)raw });
+            journal.Record(Start.AddSeconds(second), image);
+        }
+
+        var points = journal.QueryRange(mains, Start, Start.AddMinutes(2), TimeSpan.FromMinutes(1));
+
+        Assert.Equal(new[] { (230d, 290d), (228d, 228d) }, points.Select(p => (Math.Round(p.Min, 1), Math.Round(p.Max, 1))));
+    }
+
+    [Fact]
     public void QueriesStayInsideThePeriod()
     {
         using var journal = new StationJournal(DbPath);
