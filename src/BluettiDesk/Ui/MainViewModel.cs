@@ -234,6 +234,34 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public string PowerLiftingText => PowerLiftingOn ? "Увімкнено" : "Вимкнено";
 
+    public bool AcEcoOn
+    {
+        get => _status?.AcEco.On ?? false;
+        set => RequestEco(Ac180p.AcEcoSwitch, value, "AC", _status?.AcEco, _status is { AcOutputOn: true } s ? s.AcOutputWatts : 0);
+    }
+
+    public EcoTimeout? AcEcoTimeout
+    {
+        get => _status?.AcEco.Timeout;
+        set => WriteEcoTimeout(Ac180p.AcEcoTimeoutRegister, value, _status?.AcEco.Timeout);
+    }
+
+    public string AcEcoText => EcoText(_status?.AcEco);
+
+    public bool DcEcoOn
+    {
+        get => _status?.DcEco.On ?? false;
+        set => RequestEco(Ac180p.DcEcoSwitch, value, "DC", _status?.DcEco, _status is { DcOutputOn: true } s ? s.DcOutputWatts : 0);
+    }
+
+    public EcoTimeout? DcEcoTimeout
+    {
+        get => _status?.DcEco.Timeout;
+        set => WriteEcoTimeout(Ac180p.DcEcoTimeoutRegister, value, _status?.DcEco.Timeout);
+    }
+
+    public string DcEcoText => EcoText(_status?.DcEco);
+
     public ChargingMode? ChargingMode
     {
         get => _status?.ChargingMode;
@@ -320,6 +348,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private static string Number(double value) => value.ToString("0.0", Ukrainian);
 
+    private static string Hours(EcoTimeout? timeout) => timeout is { } value ? $"{(int)value} год" : "кілька годин";
+
+    private static string EcoText(EcoSetting? eco) => eco switch
+    {
+        null => NoValue,
+        { On: false } => "Вимкнено",
+        { ThresholdWatts: > 0 } => $"Вимикає вихід, якщо навантаження менше {eco.ThresholdWatts} Вт довше ніж:",
+        _ => "Вимикає вихід, якщо навантаження мале довше ніж:",
+    };
+
     private static string Key(Severity severity) => severity.ToString();
 
     private static Severity Worst(Severity a, Severity b) => a > b ? a : b;
@@ -355,6 +393,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         _ = WriteAsync(register, turnOn ? (ushort)1 : (ushort)0);
+    }
+
+    /// <summary>
+    /// ECO cuts the output on its own later. Asks first when what is plugged in now draws less than the threshold,
+    /// because exactly that load would lose power once the timeout runs out.
+    /// </summary>
+    private void RequestEco(ushort register, bool turnOn, string name, EcoSetting? eco, int loadWatts)
+    {
+        if (turnOn && eco is { } setting && loadWatts > 0 && loadWatts < setting.ThresholdWatts
+            && !_confirm($"Зараз на виході {name} {loadWatts} Вт, менше за поріг ECO {setting.ThresholdWatts} Вт. Якщо так триватиме {Hours(setting.Timeout)}, станція сама вимкне вихід {name} і знеструмить підключені прилади.\n\nУвімкнути ECO для виходу {name}?"))
+        {
+            RefreshBindings();
+            return;
+        }
+
+        _ = WriteAsync(register, turnOn ? (ushort)1 : (ushort)0);
+    }
+
+    private void WriteEcoTimeout(ushort register, EcoTimeout? value, EcoTimeout? current)
+    {
+        if (value is { } timeout && timeout != current)
+        {
+            _ = WriteAsync(register, (ushort)timeout);
+        }
     }
 
     private async Task WriteAsync(ushort register, ushort value)

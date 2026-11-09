@@ -80,12 +80,12 @@ public static class Ac180pLog
 
             U16("ac_out_on", "Вихід AC увімкнено", "", Ac180p.AcOutputSwitch),
             U16("dc_out_on", "Вихід DC увімкнено", "", Ac180p.DcOutputSwitch),
-            U16("dc_eco_on", "ECO DC увімкнено", "", 2014),
-            U16("dc_eco_hours", "ECO DC: час до вимкнення", "год", 2015),
-            U16("dc_eco_w", "ECO DC: поріг", "Вт", 2016),
-            U16("ac_eco_on", "ECO AC увімкнено", "", 2017),
-            U16("ac_eco_hours", "ECO AC: час до вимкнення", "год", 2018),
-            U16("ac_eco_w", "ECO AC: поріг", "Вт", 2019),
+            U16("dc_eco_on", "ECO DC увімкнено", "", Ac180p.DcEcoSwitch),
+            U16("dc_eco_hours", "ECO DC: час до вимкнення", "год", Ac180p.DcEcoTimeoutRegister),
+            U16("dc_eco_w", "ECO DC: поріг", "Вт", Ac180p.DcEcoThresholdRegister),
+            U16("ac_eco_on", "ECO AC увімкнено", "", Ac180p.AcEcoSwitch),
+            U16("ac_eco_hours", "ECO AC: час до вимкнення", "год", Ac180p.AcEcoTimeoutRegister),
+            U16("ac_eco_w", "ECO AC: поріг", "Вт", Ac180p.AcEcoThresholdRegister),
             U16("charging_mode", "Режим заряду (0 стандарт, 1 тихий, 2 турбо)", "", Ac180p.ChargingModeRegister),
             U16("power_lifting_on", "Power Lifting увімкнено", "", Ac180p.PowerLiftingSwitch),
         ];

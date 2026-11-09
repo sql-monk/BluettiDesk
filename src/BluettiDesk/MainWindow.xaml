@@ -281,6 +281,59 @@
                                                   HorizontalAlignment="Right"
                                                   VerticalAlignment="Center" />
                                 </Grid>
+
+                                <!-- ECO: the station turns an output off by itself after hours of a light load -->
+                                <Grid Margin="0,14,0,0">
+                                    <StackPanel Margin="0,0,50,0">
+                                        <TextBlock Text="ECO виходу AC" Style="{StaticResource CardTitle}" />
+                                        <TextBlock Text="{Binding AcEcoText}" Style="{StaticResource Detail}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleButton Style="{StaticResource Switch}"
+                                                  IsChecked="{Binding AcEcoOn, Mode=TwoWay}"
+                                                  IsEnabled="{Binding CanControl}"
+                                                  AutomationProperties.Name="ECO виходу AC"
+                                                  HorizontalAlignment="Right"
+                                                  VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Margin="0,6,0,0" BorderThickness="1" CornerRadius="6" BorderBrush="{DynamicResource ChartGridBrush}"
+                                        Visibility="{Binding AcEcoOn, Mode=OneWay, Converter={StaticResource BoolToVisible}}">
+                                    <UniformGrid Columns="4" IsEnabled="{Binding CanControl}">
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="AcEcoTimeout" Content="1 год"
+                                                     IsChecked="{Binding AcEcoTimeout, Mode=TwoWay, Converter={StaticResource Equals}, ConverterParameter={x:Static station:EcoTimeout.OneHour}}" />
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="AcEcoTimeout" Content="2 год"
+                                                     IsChecked="{Binding AcEcoTimeout, Mode=TwoWay, Converter={StaticResource Equals}, ConverterParameter={x:Static station:EcoTimeout.TwoHours}}" />
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="AcEcoTimeout" Content="3 год"
+                                                     IsChecked="{Binding AcEcoTimeout, Mode=TwoWay, Converter={StaticResource Equals}, ConverterParameter={x:Static station:EcoTimeout.ThreeHours}}" />
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="AcEcoTimeout" Content="4 год"
+                                                     IsChecked="{Binding AcEcoTimeout, Mode=TwoWay, Converter={StaticResource Equals}, ConverterParameter={x:Static station:EcoTimeout.FourHours}}" />
+                                    </UniformGrid>
+                                </Border>
+                                <Grid Margin="0,14,0,0">
+                                    <StackPanel Margin="0,0,50,0">
+                                        <TextBlock Text="ECO виходу DC" Style="{StaticResource CardTitle}" />
+                                        <TextBlock Text="{Binding DcEcoText}" Style="{StaticResource Detail}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleButton Style="{StaticResource Switch}"
+                                                  IsChecked="{Binding DcEcoOn, Mode=TwoWay}"
+                                                  IsEnabled="{Binding CanControl}"
+                                                  AutomationProperties.Name="ECO виходу DC"
+                                                  HorizontalAlignment="Right"
+                                                  VerticalAlignment="Center" />
+                                </Grid>
+                                <Border Margin="0,6,0,0" BorderThickness="1" CornerRadius="6" BorderBrush="{DynamicResource ChartGridBrush}"
+                                        Visibility="{Binding DcEcoOn, Mode=OneWay, Converter={StaticResource BoolToVisible}}">
+                                    <UniformGrid Columns="4" IsEnabled="{Binding CanControl}">
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="DcEcoTimeout" Content="1 год"
+                                                     IsChecked="{Binding DcEcoTimeout, Mode=TwoWay, Converter={StaticResource Equals}, ConverterParameter={x:Static station:EcoTimeout.OneHour}}" />
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="DcEcoTimeout" Content="2 год"
+                                                     IsChecked="{Binding DcEcoTimeout, Mode=TwoWay, Converter={StaticResource Equals}, ConverterParameter={x:Static station:EcoTimeout.TwoHours}}" />
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="DcEcoTimeout" Content="3 год"
+                                                     IsChecked="{Binding DcEcoTimeout, Mode=TwoWay, Converter={StaticResource Equals}, ConverterParameter={x:Static station:EcoTimeout.ThreeHours}}" />
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="DcEcoTimeout" Content="4 год"
+                                                     IsChecked="{Binding DcEcoTimeout, Mode=TwoWay, Converter={StaticResource Equals}, ConverterParameter={x:Static station:EcoTimeout.FourHours}}" />
+                                    </UniformGrid>
+                                </Border>
+
                                 <Grid Margin="0,14,0,0">
                                     <StackPanel Margin="0,0,50,0">
                                         <TextBlock Text="Запуск разом із Windows" Style="{StaticResource CardTitle}" />

@@ -11,6 +11,16 @@ public static class Ac180p
 {
     public const ushort AcOutputSwitch = 2011;
     public const ushort DcOutputSwitch = 2012;
+
+    // ECO of each output: the switch, then the timeout (1-4 h), then the load threshold in watts. bluetti-bt-lib lists
+    // them for the AC180 and marks the threshold as not writable. The AC180P read 4 h and 10 W (DC), 4 h and 25 W (AC).
+    public const ushort DcEcoSwitch = 2014;
+    public const ushort DcEcoTimeoutRegister = 2015;
+    public const ushort DcEcoThresholdRegister = 2016;
+    public const ushort AcEcoSwitch = 2017;
+    public const ushort AcEcoTimeoutRegister = 2018;
+    public const ushort AcEcoThresholdRegister = 2019;
+
     public const ushort ChargingModeRegister = 2020;
     public const ushort PowerLiftingSwitch = 2021;
 
@@ -75,8 +85,16 @@ public static class Ac180p
             DcOutputOn = r[DcOutputSwitch] == 1,
             PowerLiftingOn = r[PowerLiftingSwitch] == 1,
             ChargingMode = Enum.IsDefined(mode) ? mode : null,
+            AcEco = Eco(r, AcEcoSwitch, AcEcoTimeoutRegister, AcEcoThresholdRegister),
+            DcEco = Eco(r, DcEcoSwitch, DcEcoTimeoutRegister, DcEcoThresholdRegister),
             Battery = DecodeBattery(r),
         };
+    }
+
+    private static EcoSetting Eco(RegisterImage r, ushort switchRegister, ushort timeoutRegister, ushort thresholdRegister)
+    {
+        var timeout = (EcoTimeout)r[timeoutRegister];
+        return new EcoSetting(r[switchRegister] == 1, Enum.IsDefined(timeout) ? timeout : null, r[thresholdRegister]);
     }
 
     private static BatteryDetails? DecodeBattery(RegisterImage r)
@@ -181,6 +199,21 @@ public enum ChargingMode : ushort
     Turbo = 2,
 }
 
+/// <summary>How long a light load may last before ECO turns the output off. Values as bluetti-bt-lib defines them for the AC180.</summary>
+public enum EcoTimeout : ushort
+{
+    OneHour = 1,
+    TwoHours = 2,
+    ThreeHours = 3,
+    FourHours = 4,
+}
+
+/// <summary>ECO of one output: when on, the station turns the output off once its load stays below the threshold for the timeout.</summary>
+public sealed record EcoSetting(bool On, EcoTimeout? Timeout, int ThresholdWatts)
+{
+    public static EcoSetting Unknown { get; } = new(false, null, 0);
+}
+
 public sealed record StationStatus
 {
     public string Model { get; init; } = string.Empty;
@@ -206,6 +239,8 @@ public sealed record StationStatus
     public bool DcOutputOn { get; init; }
     public bool PowerLiftingOn { get; init; }
     public ChargingMode? ChargingMode { get; init; }
+    public EcoSetting AcEco { get; init; } = EcoSetting.Unknown;
+    public EcoSetting DcEco { get; init; } = EcoSetting.Unknown;
     public BatteryDetails? Battery { get; init; }
 }
 

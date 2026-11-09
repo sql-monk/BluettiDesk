@@ -150,6 +150,28 @@ public class Ac180pDecodeTests
     }
 
     [Fact]
+    public void DecodesEcoOfBothOutputs()
+    {
+        // As the AC180P reported on 7 November 2026, with DC ECO switched on for the test.
+        var image = CapturedImage();
+        image.Store(Ac180p.DcEcoSwitch, new ushort[] { 1, 4, 10, 0, 4, 25 });
+
+        var status = Ac180p.Decode(image);
+
+        Assert.Equal(new EcoSetting(true, EcoTimeout.FourHours, 10), status.DcEco);
+        Assert.Equal(new EcoSetting(false, EcoTimeout.FourHours, 25), status.AcEco);
+    }
+
+    [Fact]
+    public void UnknownEcoTimeoutIsNotGuessed()
+    {
+        var image = CapturedImage();
+        image.Store(Ac180p.AcEcoTimeoutRegister, new ushort[] { 7 });
+
+        Assert.Null(Ac180p.Decode(image).AcEco.Timeout);
+    }
+
+    [Fact]
     public void BatteryDetailsAreAbsentUntilRead()
     {
         Assert.Null(Ac180p.Decode(new RegisterImage()).Battery);

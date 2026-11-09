@@ -146,6 +146,87 @@ public sealed class ControlSafetyTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task EcoUnderALightLoadAsksAndDecliningSendsNothing()
+    {
+        // A router on AC: 12 W, below the 25 W at which ECO would cut it after 4 h.
+        await ConnectWithLoadAsync(acWatts: 12);
+
+        await OnUiAsync(() => _viewModel.AcEcoOn = true);
+        await Eventually(() => _questions.Count == 1);
+        await Settle();
+
+        Assert.Contains("12 Вт", _questions[0]);
+        Assert.Contains("25 Вт", _questions[0]);
+        Assert.Contains("4 год", _questions[0]);
+        Assert.Empty(_station.Writes);
+        Assert.False(await OnUiAsync(() => _viewModel.AcEcoOn));
+    }
+
+    [Fact]
+    public async Task ConfirmingTurnsEcoOnAndTheSwitchFollowsTheStation()
+    {
+        _answer = true;
+        await ConnectWithLoadAsync(acWatts: 0, dcWatts: 4);
+
+        await OnUiAsync(() => _viewModel.DcEcoOn = true);
+
+        await Eventually(() => _station.Writes.Contains((Ac180p.DcEcoSwitch, 1)));
+        await EventuallyOnUi(() => _viewModel.DcEcoOn);
+        Assert.Single(_questions);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(65)]
+    public async Task EcoDoesNotAskWhenNoLoadWouldBeCut(int acWatts)
+    {
+        await ConnectWithLoadAsync(acWatts);
+
+        await OnUiAsync(() => _viewModel.AcEcoOn = true);
+
+        await Eventually(() => _station.Writes.Contains((Ac180p.AcEcoSwitch, 1)));
+        Assert.Empty(_questions);
+    }
+
+    [Fact]
+    public async Task EcoOfAnOutputThatIsOffDoesNotAsk()
+    {
+        _station.Registers[142] = 12;
+        _station.Registers[Ac180p.AcOutputSwitch] = 0;
+        SetEco();
+        await StartAndWaitConnectedAsync();
+
+        await OnUiAsync(() => _viewModel.AcEcoOn = true);
+
+        await Eventually(() => _station.Writes.Contains((Ac180p.AcEcoSwitch, 1)));
+        Assert.Empty(_questions);
+    }
+
+    [Fact]
+    public async Task TurningEcoOffNeverAsks()
+    {
+        _station.Registers[Ac180p.AcEcoSwitch] = 1;
+        await ConnectWithLoadAsync(acWatts: 12);
+
+        await OnUiAsync(() => _viewModel.AcEcoOn = false);
+
+        await Eventually(() => _station.Writes.Contains((Ac180p.AcEcoSwitch, 0)));
+        Assert.Empty(_questions);
+    }
+
+    [Fact]
+    public async Task EcoTimeoutWritesTheChosenHoursOnce()
+    {
+        await ConnectWithLoadAsync(acWatts: 0);
+
+        await OnUiAsync(() => _viewModel.DcEcoTimeout = EcoTimeout.TwoHours);
+
+        await Eventually(() => _station.Writes.Contains((Ac180p.DcEcoTimeoutRegister, 2)));
+        await EventuallyOnUi(() => _viewModel.DcEcoTimeout == EcoTimeout.TwoHours);
+        Assert.Single(_station.Writes);
+    }
+
+    [Fact]
     public async Task ControlsAreOffWhileDisconnected()
     {
         await ConnectWithLoadAsync(acWatts: 0);
@@ -185,7 +266,17 @@ public sealed class ControlSafetyTests : IAsyncDisposable
         _station.Registers[140] = (ushort)dcWatts;
         _station.Registers[Ac180p.AcOutputSwitch] = 1;
         _station.Registers[Ac180p.DcOutputSwitch] = 1;
+        SetEco();
         await StartAndWaitConnectedAsync();
+    }
+
+    /// <summary>What the AC180P reported: both ECO off, 4 h, 10 W on DC and 25 W on AC.</summary>
+    private void SetEco()
+    {
+        _station.Registers[Ac180p.DcEcoTimeoutRegister] = 4;
+        _station.Registers[Ac180p.DcEcoThresholdRegister] = 10;
+        _station.Registers[Ac180p.AcEcoTimeoutRegister] = 4;
+        _station.Registers[Ac180p.AcEcoThresholdRegister] = 25;
     }
 
     private async Task StartAndWaitConnectedAsync()
