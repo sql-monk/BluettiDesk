@@ -43,7 +43,7 @@ public class ChartScaleTests
     {
         var scale = ChartScale.For(Data(229, 231) with { Limits = BluettiDesk.Core.Station.StationLimits.MainsVoltage });
 
-        Assert.True(scale.Min <= 185 && scale.Max >= 253, $"{scale.Min}..{scale.Max}");
+        Assert.True(scale.Min <= 190 && scale.Max >= 253, $"{scale.Min}..{scale.Max}");
         Assert.True(scale.Min > 100, $"Min was {scale.Min}");
     }
 

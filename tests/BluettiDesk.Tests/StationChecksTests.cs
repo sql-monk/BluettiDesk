@@ -31,7 +31,7 @@ public class StationChecksTests
         var alert = Assert.Single(health.Alerts);
         Assert.Equal(AlertKind.MainsVoltage, alert.Kind);
         Assert.Equal("Перенапруга в мережі: 289,2 В", alert.Title);
-        Assert.Equal("Норма 185–253 В. Станція не бере енергію з мережі, вихід AC живиться від батареї (229,7 В).", alert.Detail);
+        Assert.Equal("Норма 190–253 В. Станція не бере енергію з мережі, вихід AC живиться від батареї (229,7 В).", alert.Detail);
     }
 
     [Theory]
@@ -39,12 +39,12 @@ public class StationChecksTests
     [InlineData(253, Severity.Normal)]
     [InlineData(200, Severity.Normal)]
     [InlineData(190, Severity.Normal)]
-    [InlineData(185, Severity.Normal)]
     [InlineData(253.1, Severity.Warning)]
     [InlineData(260, Severity.Warning)]
     [InlineData(260.1, Severity.Critical)]
     [InlineData(263.8, Severity.Critical)]
-    [InlineData(184.9, Severity.Warning)]
+    [InlineData(189.9, Severity.Warning)]
+    [InlineData(185, Severity.Warning)]
     [InlineData(170, Severity.Warning)]
     [InlineData(169.9, Severity.Critical)]
     [InlineData(81, Severity.Critical)]
@@ -99,7 +99,7 @@ public class StationChecksTests
         var output = Assert.Single(health.Alerts, a => a.Kind == AlertKind.OutputVoltage);
         Assert.Equal("Підвищена напруга на виході AC: 256,2 В", output.Title);
         Assert.Contains("пропускає напругу мережі", output.Detail);
-        Assert.Equal("Норма 185–253 В.", health.Alerts.Single(a => a.Kind == AlertKind.MainsVoltage).Detail);
+        Assert.Equal("Норма 190–253 В.", health.Alerts.Single(a => a.Kind == AlertKind.MainsVoltage).Detail);
     }
 
     [Fact]
@@ -121,7 +121,8 @@ public class StationChecksTests
         Assert.Equal(Severity.Normal, mains.Classify(252, Severity.Normal));
         Assert.Equal(Severity.Critical, mains.Classify(259, Severity.Critical));
         Assert.Equal(Severity.Warning, mains.Classify(257, Severity.Critical));
-        Assert.Equal(Severity.Warning, mains.Classify(186, Severity.Warning));
+        Assert.Equal(Severity.Warning, mains.Classify(191, Severity.Warning));
+        Assert.Equal(Severity.Normal, mains.Classify(192.1, Severity.Warning));
         Assert.Equal(Severity.Normal, mains.Classify(2, Severity.Critical));
     }
 
