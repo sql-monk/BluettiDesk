@@ -10,7 +10,7 @@
     <AssemblyName>BluettiDesk</AssemblyName>
     <RootNamespace>BluettiDesk</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.2.0</Version>
+    <Version>1.2.1</Version>
     <Product>BluettiDesk</Product>
     <!-- ThemeMode (the Fluent look) is still flagged as evaluation API by the SDK. -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>

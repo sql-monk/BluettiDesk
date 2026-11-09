@@ -50,9 +50,8 @@ public sealed record Limits(double WarnLow, double WarnHigh, double CriticalLow,
 
 /// <summary>
 /// Thresholds of the checks. Mains follows what the station does rather than ДСТУ EN 50160 (207–253 V), which flagged
-/// grids it works on: it charged at 1500 W from 189.7 V and at 258 V, and dropped the grid at 263.8 V. The owner marks low and
-/// high mains at 190 and 253 V; above 253 V the station also passes the grid to its AC output. Where it gives up below 190 V has
-/// not been seen; 170 V is a guess.
+/// grids it works on. Below 190 V the station disconnects its AC input, so there is no warning band on that side. Above 253 V
+/// it still charges but passes the grid to its AC output; it charged at 258 V and dropped the grid at 263.8 V.
 /// Frequency: 50 Hz ±1 % normally, 47–52 Hz at the outside. Cells and temperatures: the usual limits of LiFePO4.
 /// </summary>
 public static class StationLimits
@@ -66,7 +65,7 @@ public static class StationLimits
 
     public const double MaxCellSpreadVolts = 0.1;
 
-    public static Limits MainsVoltage { get; } = new(190, 253, 170, 260) { AbsentBelow = MainsPresentVoltage, Hysteresis = 2 };
+    public static Limits MainsVoltage { get; } = new(190, 253, 190, 260) { AbsentBelow = MainsPresentVoltage, Hysteresis = 2 };
 
     public static Limits MainsFrequency { get; } = new(49.5, 50.5, 47, 52) { AbsentBelow = 40, Hysteresis = 0.1 };
 

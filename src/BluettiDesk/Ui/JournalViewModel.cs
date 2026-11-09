@@ -103,7 +103,7 @@ public sealed class JournalViewModel : INotifyPropertyChanged
     public ChartData? MainsChart => _mainsChart;
 
     public string MainsLimitsText =>
-        $"Пунктиром позначено низьку ({StationLimits.MainsVoltage.WarnLow:0} В) і високу ({StationLimits.MainsVoltage.WarnHigh:0} В) напругу. Жовтим зафарбовано напругу поза ними, червоним небезпечну: вище {StationLimits.MainsVoltage.CriticalHigh:0} В станція відключається від мережі. Біля нуля мережі не було.";
+        $"Пунктиром позначено низьку ({StationLimits.MainsVoltage.WarnLow:0} В) і високу ({StationLimits.MainsVoltage.WarnHigh:0} В) напругу. Червоним зафарбовано, де станція відключається від мережі: нижче {StationLimits.MainsVoltage.CriticalLow:0} і вище {StationLimits.MainsVoltage.CriticalHigh:0} В. Жовтим зафарбовано підвищену напругу до {StationLimits.MainsVoltage.CriticalHigh:0} В, яку станція пропускає на вихід AC. Біля нуля мережі не було.";
 
     public string InfoText => _infoText;
 

@@ -43,10 +43,8 @@ public class StationChecksTests
     [InlineData(260, Severity.Warning)]
     [InlineData(260.1, Severity.Critical)]
     [InlineData(263.8, Severity.Critical)]
-    [InlineData(189.9, Severity.Warning)]
-    [InlineData(185, Severity.Warning)]
-    [InlineData(170, Severity.Warning)]
-    [InlineData(169.9, Severity.Critical)]
+    [InlineData(189.9, Severity.Critical)]
+    [InlineData(170, Severity.Critical)]
     [InlineData(81, Severity.Critical)]
     public void MainsVoltageLevels(double volts, Severity expected)
     {
@@ -55,8 +53,8 @@ public class StationChecksTests
 
     [Theory]
     [InlineData(258, "Підвищена напруга в мережі: 258,0 В")]
-    [InlineData(180, "Знижена напруга в мережі: 180,0 В")]
-    [InlineData(160, "Дуже низька напруга в мережі: 160,0 В")]
+    [InlineData(265, "Перенапруга в мережі: 265,0 В")]
+    [InlineData(189, "Дуже низька напруга в мережі: 189,0 В")]
     public void TheTitleSaysWhichWay(double volts, string title)
     {
         Assert.Equal(title, StationChecks.Evaluate(Normal with { AcInputVoltage = volts }).Alerts[0].Title);
@@ -121,8 +119,8 @@ public class StationChecksTests
         Assert.Equal(Severity.Normal, mains.Classify(252, Severity.Normal));
         Assert.Equal(Severity.Critical, mains.Classify(259, Severity.Critical));
         Assert.Equal(Severity.Warning, mains.Classify(257, Severity.Critical));
-        Assert.Equal(Severity.Warning, mains.Classify(191, Severity.Warning));
-        Assert.Equal(Severity.Normal, mains.Classify(192.1, Severity.Warning));
+        Assert.Equal(Severity.Critical, mains.Classify(191, Severity.Critical));
+        Assert.Equal(Severity.Normal, mains.Classify(192.1, Severity.Critical));
         Assert.Equal(Severity.Normal, mains.Classify(2, Severity.Critical));
     }
 

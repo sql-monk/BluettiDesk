@@ -162,8 +162,9 @@ public sealed class TimeChart : FrameworkElement
 
     /// <summary>
     /// Tints the warning and danger zones above and below the normal range and dashes its edges, so a line that leaves
-    /// the range stands out without changing its colour. A danger zone is as deep as a warning zone, or deeper where the
-    /// data goes further, so an empty zone does not fill the chart. Nothing is tinted where the source is absent.
+    /// the range stands out without changing its colour. A danger zone is as deep as the warning zone on its side (or on
+    /// the other side, where this one has none), or deeper where the data goes further, so an empty zone does not fill the
+    /// chart. Nothing is tinted where the source is absent.
     /// </summary>
     private void DrawLimits(DrawingContext dc, Rect plot, ChartScale scale, Limits limits, ChartData data)
     {
@@ -171,11 +172,13 @@ public sealed class TimeChart : FrameworkElement
         var present = data.Series.SelectMany(s => s.Points).Select(p => p.Value).Where(v => v >= limits.AbsentBelow).ToList();
         var highest = present.Count > 0 ? present.Max() : limits.CriticalHigh;
         var lowest = present.Count > 0 ? present.Min() : limits.CriticalLow;
+        var highBand = limits.CriticalHigh - limits.WarnHigh;
+        var lowBand = limits.WarnLow - limits.CriticalLow;
 
-        Zone(limits.CriticalHigh, Math.Max(highest, 2 * limits.CriticalHigh - limits.WarnHigh), CriticalBrush);
+        Zone(limits.CriticalHigh, Math.Max(highest, limits.CriticalHigh + (highBand > 0 ? highBand : lowBand)), CriticalBrush);
         Zone(limits.WarnHigh, limits.CriticalHigh, WarningBrush);
         Zone(limits.CriticalLow, limits.WarnLow, WarningBrush);
-        Zone(Math.Min(lowest, 2 * limits.CriticalLow - limits.WarnLow), limits.CriticalLow, CriticalBrush);
+        Zone(Math.Min(lowest, limits.CriticalLow - (lowBand > 0 ? lowBand : highBand)), limits.CriticalLow, CriticalBrush);
 
         var edge = new Pen(MutedBrush, 1) { DashStyle = new DashStyle([4, 3], 0) };
         edge.Freeze();
