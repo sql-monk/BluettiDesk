@@ -14,4 +14,19 @@
     <SolidColorBrush x:Key="StatusWarningInkBrush" Color="#A86A00"/>
     <SolidColorBrush x:Key="OnWarningBrush" Color="#1A1A19"/>
     <SolidColorBrush x:Key="OnCriticalBrush" Color="#FFFFFF"/>
+    <!-- Outage schedule: amber like a lit lamp, slate blue like a dark window; a possible outage is hatched with the dark one -->
+    <SolidColorBrush x:Key="OutageOnBrush" Color="#E8A317"/>
+    <SolidColorBrush x:Key="OutageOffBrush" Color="#33507A"/>
+    <SolidColorBrush x:Key="OutageMaybeSolidBrush" Color="#8FA3C2"/>
+    <DrawingBrush x:Key="OutageMaybeBrush" TileMode="Tile" Viewport="0,0,6,6" ViewportUnits="Absolute" Stretch="None">
+        <DrawingBrush.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="#DCE3EE" Geometry="M0,0 H6 V6 H0 Z"/>
+                <GeometryDrawing Brush="#33507A" Geometry="M0,0 L3,0 L0,3 Z M6,0 L6,3 L3,6 L0,6 Z"/>
+            </DrawingGroup>
+        </DrawingBrush.Drawing>
+    </DrawingBrush>
+    <SolidColorBrush x:Key="OutageUnknownBrush" Color="#DEDDD7"/>
+    <SolidColorBrush x:Key="OutageOnInkBrush" Color="#1A1A19"/>
+    <SolidColorBrush x:Key="OutageOffInkBrush" Color="#FFFFFF"/>
 </ResourceDictionary>

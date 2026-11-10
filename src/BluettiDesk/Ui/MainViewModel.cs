@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using BluettiDesk.Core.Journal;
 using BluettiDesk.Core.Station;
+using BluettiDesk.Outages;
 
 namespace BluettiDesk.Ui;
 
@@ -14,7 +15,8 @@ namespace BluettiDesk.Ui;
 public sealed class MainViewModel : INotifyPropertyChanged
 {
     private const string NoValue = "—";
-    private const int JournalTab = 1;
+    private const int OutagesTab = 1;
+    private const int JournalTab = 2;
     private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");
     private static readonly TimeSpan CommandErrorDuration = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan AlertQuietPeriod = TimeSpan.FromMinutes(15);
@@ -44,8 +46,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IAutoStart? autoStart = null,
         StationJournal? journal = null,
         Func<string, string?>? askExportPath = null,
-        string? journalOpenError = null)
+        string? journalOpenError = null,
+        OutageViewModel? outages = null)
     {
+        Outages = outages;
         _monitor = monitor;
         _dispatcher = dispatcher;
         _confirm = confirm;
@@ -75,7 +79,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public JournalViewModel? Journal { get; }
 
+    /// <summary>The outage schedule of the chosen address, when the app reads it.</summary>
+    public OutageViewModel? Outages { get; }
+
     public bool HasJournal => Journal is not null;
+
+    public bool HasOutages => Outages is not null;
 
     public int SelectedTab
     {
@@ -86,6 +95,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (Journal is { } journal)
             {
                 journal.IsActive = value == JournalTab;
+            }
+
+            if (Outages is { } outages)
+            {
+                outages.IsActive = value == OutagesTab;
             }
         }
     }

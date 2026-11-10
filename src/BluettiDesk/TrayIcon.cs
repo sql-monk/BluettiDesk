@@ -38,6 +38,14 @@ internal sealed class TrayIcon : IDisposable
         _icon.BalloonTipClicked += (_, _) => open();
         viewModel.PropertyChanged += (_, _) => Refresh();
         viewModel.AlertRaised += alert => _icon.ShowBalloonTip(10000, alert.Title, alert.Detail.Length > 0 ? alert.Detail : " ", ToolTipIcon.Warning);
+        if (viewModel.Outages is { } outages)
+        {
+            outages.CheckRequired += () => _icon.ShowBalloonTip(
+                10000,
+                "Графік відключень не оновлюється",
+                "Сайт ДТЕК просить пройти перевірку. Відкрийте вкладку «Відключення» і натисніть «Пройти перевірку».",
+                ToolTipIcon.Info);
+        }
         Refresh();
     }
 

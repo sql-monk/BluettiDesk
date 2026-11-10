@@ -2,7 +2,9 @@ using System.IO;
 using System.Windows;
 using BluettiDesk.Ble;
 using BluettiDesk.Core.Journal;
+using BluettiDesk.Core.Outages;
 using BluettiDesk.Core.Station;
+using BluettiDesk.Outages;
 using BluettiDesk.Ui;
 using Microsoft.Win32;
 
@@ -24,6 +26,8 @@ public partial class App : Application
     private EventWaitHandle? _exitRequest;
     private StationMonitor? _monitor;
     private StationJournal? _journal;
+    private OutageScheduleStore? _outageStore;
+    private DtekSiteReader? _dtekSite;
     private TrayIcon? _tray;
     private MainWindow? _window;
     private bool _exiting;
@@ -74,11 +78,29 @@ public partial class App : Application
             _monitor.SweepCompleted += journal.Record;
         }
 
-        var viewModel = new MainViewModel(_monitor, Dispatcher, Confirm, autoStart, _journal, AskExportPath, journalError);
+        // Outage schedules go into the same file, next to what the station measured.
+        if (_journal is not null)
+        {
+            try
+            {
+                _outageStore = new OutageScheduleStore(_journal.FilePath);
+            }
+            catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+
+        var outageSettingsPath = Path.Combine(DataFolder, "outages.json");
+        _dtekSite = new DtekSiteReader(Path.Combine(DataFolder, "WebView2"));
+        var outages = new OutageViewModel(
+            OutageSettings.Load(outageSettingsPath), outageSettingsPath, DataFolder, _dtekSite, _outageStore, _journal, Dispatcher);
+
+        var viewModel = new MainViewModel(_monitor, Dispatcher, Confirm, autoStart, _journal, AskExportPath, journalError, outages);
         _window = new MainWindow { DataContext = viewModel };
         _tray = new TrayIcon(viewModel, ShowWindow, ExitApp);
         _window.HiddenToTray += () => _tray.ShowHiddenHint();
         viewModel.Start();
+        outages.Start();
 
         if (!e.Args.Contains(RegistryAutoStart.BackgroundArgument))
         {
@@ -156,6 +178,8 @@ public partial class App : Application
             Task.Run(monitor.StopAsync).Wait(ExitTimeout);
         }
 
+        _dtekSite?.Dispose();
+        _outageStore?.Dispose();
         _journal?.Dispose();
     }
 

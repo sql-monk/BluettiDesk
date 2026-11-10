@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:BluettiDesk.Ui"
         xmlns:station="clr-namespace:BluettiDesk.Core.Station;assembly=BluettiDesk.Core"
+        xmlns:outages="clr-namespace:BluettiDesk.Outages"
         Title="BluettiDesk"
         Icon="Assets/app.ico"
         Width="1040"
@@ -14,6 +15,16 @@
         <ui:EqualsConverter x:Key="Equals" />
         <ui:NullToCollapsedConverter x:Key="NullToCollapsed" />
         <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+
+        <!-- One queue of a day: the strip, its hours and the times without power -->
+        <DataTemplate x:Key="DayRowTemplate">
+            <StackPanel Margin="0,0,0,10">
+                <TextBlock Text="{Binding Title}" Style="{StaticResource CardTitle}" Margin="0,0,0,4"
+                           Visibility="{Binding Title, Converter={StaticResource NullToCollapsed}}" />
+                <outages:OutageStrip Segments="{Binding Segments}" NowMinute="{Binding NowMinute}" ShowAxis="True" BarHeight="34" />
+                <TextBlock Text="{Binding Detail}" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </StackPanel>
+        </DataTemplate>
     </Window.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -167,6 +178,8 @@
                                 <TextBlock Text="Вхід AC" Style="{StaticResource CardTitle}" />
                                 <TextBlock Text="{Binding AcInputPower}" Style="{StaticResource BigValue}" />
                                 <TextBlock Text="Немає живлення" Style="{StaticResource Detail}" Visibility="{Binding MainsAbsent, Converter={StaticResource BoolToVisible}}" />
+                                <TextBlock Text="{Binding Outages.OverviewText}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Visibility="{Binding Outages.OverviewText, Converter={StaticResource NullToCollapsed}}" />
                                 <StackPanel Orientation="Horizontal" Visibility="{Binding MainsPresent, Converter={StaticResource BoolToVisible}}">
                                     <Border Style="{StaticResource Pill}" Tag="{Binding AcInputVoltageKey}">
                                         <TextBlock Text="{Binding AcInputVoltageText}" AutomationProperties.Name="Напруга мережі" />
@@ -393,6 +406,258 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                </TabItem>
+
+                <TabItem Header="Відключення" IsEnabled="{Binding HasOutages}">
+                    <StackPanel DataContext="{Binding Outages}" Margin="0,6,0,0">
+                        <!-- The address and the way to the site -->
+                        <Grid Margin="6,2,6,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding AddressText}" Style="{StaticResource SectionTitle}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Style="{StaticResource Detail}">
+                                    <Run Text="{Binding QueueText, Mode=OneWay}" FontWeight="SemiBold" />
+                                    <Run Text="  " />
+                                    <Run Text="{Binding SiteText, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Змінити адресу" Command="{Binding EditAddressCommand}" Margin="0,0,8,0" VerticalAlignment="Center"
+                                    Visibility="{Binding ShowEditButton, Converter={StaticResource BoolToVisible}}" />
+                            <Button Grid.Column="2" Content="Оновити" Command="{Binding RefreshCommand}" IsEnabled="{Binding CanRefresh}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <Button Grid.Column="3" Content="Сайт ДТЕК" Command="{Binding OpenSiteCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                        <ProgressBar IsIndeterminate="True" Height="2" Margin="6,0,6,4" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+
+                        <!-- What the site said, or that it wants a person to pass its check -->
+                        <Border Style="{StaticResource Card}" BorderBrush="{DynamicResource StatusWarningBrush}"
+                                Visibility="{Binding StatusText, Converter={StaticResource NullToCollapsed}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" FontSize="13" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <Button Grid.Column="1" Content="Пройти перевірку" Command="{Binding PassCheckCommand}" Margin="12,0,0,0" VerticalAlignment="Center"
+                                        Visibility="{Binding NeedsCheck, Converter={StaticResource BoolToVisible}}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- The address, chosen the way the site's form offers it -->
+                        <Border Style="{StaticResource Card}" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisible}}">
+                            <StackPanel MaxWidth="640" HorizontalAlignment="Left">
+                                <TextBlock Text="Адреса" Style="{StaticResource SectionTitle}" />
+                                <TextBlock Text="Почніть вводити назву й виберіть її зі списку, як у формі на сайті ДТЕК. Застосунок стежитиме за графіком цієї адреси й зберігатиме його в журнал." Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="0,2,0,10" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="Регіон" Style="{StaticResource CardTitle}" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding Sites}" SelectedItem="{Binding EditSite, Mode=TwoWay}" DisplayMemberPath="Name"
+                                              AutomationProperties.Name="Регіон" Margin="0,0,0,8" />
+                                    <TextBlock Grid.Row="1" Text="Населений пункт" Style="{StaticResource CardTitle}" VerticalAlignment="Center" />
+                                    <outages:SuggestBox Grid.Row="1" Grid.Column="1" Text="{Binding CityText, Mode=TwoWay}" Options="{Binding CityOptions}"
+                                                        AutomationProperties.Name="Населений пункт" Margin="0,0,0,8" />
+                                    <TextBlock Grid.Row="2" Text="Вулиця" Style="{StaticResource CardTitle}" VerticalAlignment="Center" />
+                                    <outages:SuggestBox Grid.Row="2" Grid.Column="1" Text="{Binding StreetText, Mode=TwoWay}" Options="{Binding StreetOptions}"
+                                                        IsEnabled="{Binding StreetEnabled}" AutomationProperties.Name="Вулиця" Margin="0,0,0,8" />
+                                    <TextBlock Grid.Row="3" Text="Номер будинку" Style="{StaticResource CardTitle}" VerticalAlignment="Center" />
+                                    <outages:SuggestBox Grid.Row="3" Grid.Column="1" Text="{Binding HouseText, Mode=TwoWay}" Options="{Binding HouseOptions}"
+                                                        IsEnabled="{Binding HouseEnabled}" AutomationProperties.Name="Номер будинку" />
+                                </Grid>
+                                <TextBlock Text="{Binding EditorHint}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="0,10,0,0" />
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Content="Зберегти адресу" Command="{Binding SaveAddressCommand}" IsEnabled="{Binding CanSave}" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,8,0" />
+                                    <Button Content="Скасувати" Command="{Binding CancelEditCommand}" Visibility="{Binding CanCancelEdit, Converter={StaticResource BoolToVisible}}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Visibility="{Binding HasSchedule, Converter={StaticResource BoolToVisible}}">
+                            <!-- The site's own warnings -->
+                            <Border CornerRadius="8" BorderThickness="1" Padding="14,10" Margin="6,4"
+                                    Background="{DynamicResource AlertWarningBackgroundBrush}" BorderBrush="{DynamicResource StatusWarningBrush}"
+                                    Visibility="{Binding AttentionText, Converter={StaticResource NullToCollapsed}}">
+                                <TextBlock Text="{Binding AttentionText}" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Border>
+                            <Border CornerRadius="8" BorderThickness="1" Padding="14,10" Margin="6,4"
+                                    Background="{DynamicResource AlertCriticalBackgroundBrush}" BorderBrush="{DynamicResource StatusCriticalBrush}"
+                                    Visibility="{Binding OutageText, Converter={StaticResource NullToCollapsed}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding OutageTitle}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               Visibility="{Binding OutageTitle, Converter={StaticResource NullToCollapsed}}" />
+                                    <TextBlock Text="{Binding OutageText}" FontSize="13" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </StackPanel>
+                            </Border>
+                            <Border CornerRadius="8" BorderThickness="1" Padding="14,10" Margin="6,4"
+                                    Background="{DynamicResource AlertWarningBackgroundBrush}" BorderBrush="{DynamicResource StatusWarningBrush}"
+                                    Visibility="{Binding HiddenText, Converter={StaticResource NullToCollapsed}}">
+                                <TextBlock Text="{Binding HiddenText}" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            </Border>
+
+                            <!-- Now, by the schedule -->
+                            <Border Style="{StaticResource Card}" Visibility="{Binding HeroVisible, Converter={StaticResource BoolToVisible}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Width="52" Height="52" Margin="0,0,14,0" VerticalAlignment="Center">
+                                        <Ellipse>
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Fill" Value="{DynamicResource StatusOffBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HeroKind}" Value="On">
+                                                            <Setter Property="Fill" Value="{DynamicResource OutageOnBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding HeroKind}" Value="Off">
+                                                            <Setter Property="Fill" Value="{DynamicResource OutageOffBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding HeroKind}" Value="Maybe">
+                                                            <Setter Property="Fill" Value="{DynamicResource OutageMaybeSolidBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="&#xE9CE;" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource OutageOffInkBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HeroKind}" Value="On">
+                                                            <Setter Property="Text" Value="&#xE945;" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource OutageOnInkBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding HeroKind}" Value="Off">
+                                                            <Setter Property="Text" Value="&#xE711;" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding HeroKind}" Value="Maybe">
+                                                            <Setter Property="Text" Value="&#xE7BA;" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding HeroKicker}" Style="{StaticResource CardTitle}" />
+                                        <TextBlock Text="{Binding HeroTitle}" FontSize="24" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                        <TextBlock Text="{Binding HeroNext}" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Today and tomorrow -->
+                            <Border Style="{StaticResource Card}" Visibility="{Binding ScheduleVisible, Converter={StaticResource BoolToVisible}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding TodayTitle}" Style="{StaticResource SectionTitle}" Margin="0,0,0,8" />
+                                    <ItemsControl ItemsSource="{Binding TodayRows}" ItemTemplate="{StaticResource DayRowTemplate}" Focusable="False" />
+                                    <TextBlock Text="Очікуйте на оновлення графіків" Style="{StaticResource Detail}" Visibility="{Binding TodayEmpty, Converter={StaticResource BoolToVisible}}" />
+                                    <TextBlock Text="{Binding TomorrowTitle}" Style="{StaticResource SectionTitle}" Margin="0,16,0,8" />
+                                    <ItemsControl ItemsSource="{Binding TomorrowRows}" ItemTemplate="{StaticResource DayRowTemplate}" Focusable="False" />
+                                    <TextBlock Text="Інформація від НЕК «Укренерго» про обмеження на наступний день ще не надходила" Style="{StaticResource Detail}" TextWrapping="Wrap"
+                                               Visibility="{Binding TomorrowEmpty, Converter={StaticResource BoolToVisible}}" />
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <Rectangle Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageOnBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Світло є" Style="{StaticResource Detail}" Margin="0,0,16,0" />
+                                        <Rectangle Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageOffBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Світла немає" Style="{StaticResource Detail}" Margin="0,0,16,0" />
+                                        <Rectangle Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageMaybeBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Можливе відключення" Style="{StaticResource Detail}" Margin="0,0,16,0" />
+                                        <Rectangle Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageUnknownBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Немає даних" Style="{StaticResource Detail}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Schedule against fact -->
+                            <Border Style="{StaticResource Card}" Visibility="{Binding ScheduleVisible, Converter={StaticResource BoolToVisible}}">
+                                <StackPanel>
+                                    <TextBlock Text="Графік і факт" Style="{StaticResource SectionTitle}" />
+                                    <TextBlock Text="{Binding ComparisonHint}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="0,2,0,8" />
+                                    <TextBlock Text="Порівняння з'явиться, коли в журналі будуть і графік, і дані станції." Style="{StaticResource Detail}"
+                                               Visibility="{Binding ComparisonEmpty, Converter={StaticResource BoolToVisible}}" />
+                                    <ItemsControl ItemsSource="{Binding Comparison}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,8,0,8">
+                                                    <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,0,6" />
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="70" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock Text="Графік" Style="{StaticResource CardTitle}" VerticalAlignment="Top" Margin="0,3,0,0" />
+                                                        <outages:OutageStrip Grid.Column="1" Segments="{Binding Plan}" NowMinute="{Binding NowMinute}" BarHeight="20"
+                                                                             EmptyText="Графіка на цей день не збережено" Margin="0,0,0,6" />
+                                                        <TextBlock Grid.Row="1" Text="Станція" Style="{StaticResource CardTitle}" VerticalAlignment="Top" Margin="0,3,0,0" />
+                                                        <outages:OutageStrip Grid.Row="1" Grid.Column="1" Segments="{Binding Fact}" NowMinute="{Binding NowMinute}" BarHeight="20"
+                                                                             ShowAxis="True" EmptyText="Даних станції немає" />
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding Summary}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="70,4,0,0" />
+                                                    <TextBlock Text="{Binding Versions}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="70,2,0,0"
+                                                               Visibility="{Binding Versions, Converter={StaticResource NullToCollapsed}}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- The long-term plan -->
+                            <Border Style="{StaticResource Card}" Visibility="{Binding WeekVisible, Converter={StaticResource BoolToVisible}}">
+                                <StackPanel>
+                                    <TextBlock Text="План на тиждень" Style="{StaticResource SectionTitle}" Margin="0,0,0,8" />
+                                    <ItemsControl ItemsSource="{Binding WeekRows}" Focusable="False">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="70" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Title}" FontSize="12" VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <outages:OutageStrip Grid.Column="1" Segments="{Binding Segments}" BarHeight="14" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="{Binding MetaText}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="8,4,8,8" />
+                        </StackPanel>
+                    </StackPanel>
                 </TabItem>
 
                 <TabItem Header="Журнал" IsEnabled="{Binding HasJournal}">

@@ -1,6 +1,7 @@
 <Application x:Class="BluettiDesk.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:outages="clr-namespace:BluettiDesk.Outages"
              ThemeMode="System"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
@@ -167,6 +168,16 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Here rather than in the window: an implicit style of a non-control does not reach into data templates otherwise -->
+        <Style TargetType="outages:OutageStrip">
+            <Setter Property="OnBrush" Value="{DynamicResource OutageOnBrush}" />
+            <Setter Property="OffBrush" Value="{DynamicResource OutageOffBrush}" />
+            <Setter Property="MaybeBrush" Value="{DynamicResource OutageMaybeBrush}" />
+            <Setter Property="UnknownBrush" Value="{DynamicResource OutageUnknownBrush}" />
+            <Setter Property="MarkerBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="TextBrush" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         </Style>
     </Application.Resources>
 </Application>

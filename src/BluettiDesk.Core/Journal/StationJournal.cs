@@ -14,6 +14,9 @@ public readonly record struct RangePoint(DateTime Time, double Min, double Max);
 
 public sealed record JournalInfo(DateTime? FirstSample, long SampleCount, long SizeBytes);
 
+/// <summary>A stretch of time over which the grid was either there or not, in UTC.</summary>
+public readonly record struct PresenceSpan(DateTime FromUtc, DateTime ToUtc, bool Present);
+
 /// <summary>
 /// The long-term record, one SQLite file. <c>sample</c> holds every named value, <c>register_change</c>
 /// holds each register the station answers to, written only when it changes. Times are Unix seconds, UTC.
@@ -22,6 +25,11 @@ public sealed class StationJournal : IDisposable
 {
     public static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(10);
     public static readonly TimeSpan RegisterInterval = TimeSpan.FromMinutes(1);
+
+    /// <summary>A reading speaks for at most this long: a longer silence means the app was closed or the station out of reach.</summary>
+    public static readonly TimeSpan MaxSampleGap = TimeSpan.FromSeconds(60);
+
+    private const string MainsColumn = "ac_in_v";
 
     private readonly string _path;
     private readonly object _writeLock = new();
@@ -155,6 +163,66 @@ public sealed class StationJournal : IDisposable
             }
         });
         return points;
+    }
+
+    /// <summary>
+    /// When the grid was there and when not, oldest first, judged by the measured input voltage. Time not covered by
+    /// readings is in no span.
+    /// </summary>
+    public IReadOnlyList<PresenceSpan> QueryMainsPresence(DateTime fromUtc, DateTime toUtc)
+    {
+        var spans = new List<PresenceSpan>();
+        if (!Fields.Any(f => f.Column == MainsColumn))
+        {
+            return spans;
+        }
+
+        using var connection = OpenReader();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT ts, {MainsColumn} FROM sample WHERE ts >= @from AND ts < @to AND {MainsColumn} IS NOT NULL ORDER BY ts";
+        command.Parameters.AddWithValue("@from", ToUnix(fromUtc - MaxSampleGap));
+        command.Parameters.AddWithValue("@to", ToUnix(toUtc));
+        using var reader = command.ExecuteReader();
+
+        (DateTime Time, bool Present)? previous = null;
+        while (reader.Read())
+        {
+            var time = DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(0)).UtcDateTime;
+            var present = reader.GetDouble(1) >= StationLimits.MainsPresentVoltage;
+            if (previous is { } last)
+            {
+                Add(last.Time, Min(time, last.Time + MaxSampleGap), last.Present);
+            }
+
+            previous = (time, present);
+        }
+
+        if (previous is { } final)
+        {
+            Add(final.Time, Min(toUtc, final.Time + MaxSampleGap), final.Present);
+        }
+
+        return spans;
+
+        void Add(DateTime from, DateTime to, bool present)
+        {
+            from = from < fromUtc ? fromUtc : from;
+            if (to <= from)
+            {
+                return;
+            }
+
+            if (spans.Count > 0 && spans[^1].Present == present && spans[^1].ToUtc == from)
+            {
+                spans[^1] = spans[^1] with { ToUtc = to };
+            }
+            else
+            {
+                spans.Add(new PresenceSpan(from, to, present));
+            }
+        }
+
+        static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
     }
 
     /// <summary>Writes the named values of a period as CSV that Excel opens correctly under <paramref name="culture"/>.</summary>
