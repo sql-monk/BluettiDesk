@@ -10,6 +10,24 @@ public enum GridFact : byte
     Off,
 }
 
+/// <summary>A minute of what the station saw, read against the schedule of that day.</summary>
+public enum FactVerdict : byte
+{
+    Unknown,
+
+    /// <summary>Power, and the schedule did not say otherwise.</summary>
+    On,
+
+    /// <summary>No power, as the schedule said or allowed, or with no schedule to compare.</summary>
+    Off,
+
+    /// <summary>No power while the schedule promised it.</summary>
+    UnplannedOff,
+
+    /// <summary>Power while the schedule said there would be none.</summary>
+    UnexpectedOn,
+}
+
 /// <summary>
 /// One Kyiv day: what the schedule promised and what the station measured, minute by minute. The statistics count only
 /// minutes for which the journal has readings, so a day the app was closed does not look like a day without outages.
@@ -21,6 +39,7 @@ public sealed class DayComparison
         Day = day;
         Plan = plan;
         Fact = fact;
+        Verdicts = new FactVerdict[fact.Length];
         for (var minute = 0; minute < fact.Length; minute++)
         {
             var planned = plan?[minute / OutageSchedule.SlotMinutes] ?? OutageSlot.Unknown;
@@ -36,19 +55,30 @@ public sealed class DayComparison
                     if (planned == OutageSlot.Off)
                     {
                         PowerWhilePlannedOffMinutes++;
+                        Verdicts[minute] = FactVerdict.UnexpectedOn;
+                    }
+                    else
+                    {
+                        Verdicts[minute] = FactVerdict.On;
                     }
 
                     break;
                 case GridFact.Off:
                     KnownMinutes++;
                     ActualOffMinutes++;
-                    if (planned == OutageSlot.Off)
+                    Verdicts[minute] = FactVerdict.Off;
+                    switch (planned)
                     {
-                        MatchedOffMinutes++;
-                    }
-                    else
-                    {
-                        UnplannedOffMinutes++;
+                        case OutageSlot.Off:
+                            MatchedOffMinutes++;
+                            break;
+                        case OutageSlot.Maybe:
+                            OffWhileMaybeMinutes++;
+                            break;
+                        case OutageSlot.On:
+                            UnplannedOffMinutes++;
+                            Verdicts[minute] = FactVerdict.UnplannedOff;
+                            break;
                     }
 
                     break;
@@ -64,6 +94,9 @@ public sealed class DayComparison
     /// <summary>1440 minutes from Kyiv midnight.</summary>
     public GridFact[] Fact { get; }
 
+    /// <summary>The same minutes against the schedule; without a schedule they only say whether the grid was there.</summary>
+    public FactVerdict[] Verdicts { get; }
+
     public int PlannedOffMinutes { get; }
 
     /// <summary>Minutes for which the journal knows whether the grid was there.</summary>
@@ -74,8 +107,11 @@ public sealed class DayComparison
     /// <summary>Without power, as the schedule said.</summary>
     public int MatchedOffMinutes { get; }
 
-    /// <summary>Without power while the schedule did not say so.</summary>
+    /// <summary>Without power while the schedule promised it.</summary>
     public int UnplannedOffMinutes { get; }
+
+    /// <summary>Without power during a possible outage.</summary>
+    public int OffWhileMaybeMinutes { get; }
 
     /// <summary>With power while the schedule said there would be none.</summary>
     public int PowerWhilePlannedOffMinutes { get; }
@@ -128,6 +164,11 @@ public sealed class DayComparison
                 if (UnplannedOffMinutes > 0)
                 {
                     details.Add($"поза графіком {OutageTexts.Duration(UnplannedOffMinutes)}");
+                }
+
+                if (OffWhileMaybeMinutes > 0)
+                {
+                    details.Add($"у час можливих відключень {OutageTexts.Duration(OffWhileMaybeMinutes)}");
                 }
 
                 if (PowerWhilePlannedOffMinutes > 0)

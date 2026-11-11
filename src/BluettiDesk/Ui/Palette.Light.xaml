@@ -27,6 +27,13 @@
         </DrawingBrush.Drawing>
     </DrawingBrush>
     <SolidColorBrush x:Key="OutageUnknownBrush" Color="#DEDDD7"/>
+    <!-- What the station saw: neutrals where it agrees with the schedule, bright where it does not -->
+    <SolidColorBrush x:Key="OutageFactOnBrush" Color="#BDB5A6"/>
+    <SolidColorBrush x:Key="OutageFactOffBrush" Color="#57524A"/>
+    <SolidColorBrush x:Key="OutageUnplannedOffBrush" Color="#D2501B"/>
+    <SolidColorBrush x:Key="OutageUnexpectedOnBrush" Color="#0F8FB0"/>
+    <!-- How far the charge of the station carries, under the strip of today -->
+    <SolidColorBrush x:Key="OutageReachBrush" Color="#6E6A62"/>
     <SolidColorBrush x:Key="OutageOnInkBrush" Color="#1A1A19"/>
     <SolidColorBrush x:Key="OutageOffInkBrush" Color="#FFFFFF"/>
 </ResourceDictionary>

@@ -21,6 +21,9 @@ public static class KyivTime
         return local.Hour * 60 + local.Minute;
     }
 
+    /// <summary>Wall-clock minutes of <paramref name="utc"/> counted from the midnight that begins <paramref name="day"/>; a later day adds 1440 each.</summary>
+    public static int MinuteFrom(DateOnly day, DateTime utc) => (DayOf(utc).DayNumber - day.DayNumber) * MinutesPerDay + MinuteOfDay(utc);
+
     /// <summary>The moment a wall-clock minute of a Kyiv day begins. A minute skipped by the spring clock change maps to the hour after it.</summary>
     public static DateTime ToUtc(DateOnly day, int minuteOfDay)
     {

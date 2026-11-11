@@ -82,6 +82,7 @@ public sealed class OutageViewModel : INotifyPropertyChanged
         _clock.Tick += (_, _) =>
         {
             Notify(string.Empty);
+            Changed?.Invoke();
             if (_isActive && DateTime.Now.Minute % 5 == 0)
             {
                 _ = LoadComparisonAsync();
@@ -100,6 +101,9 @@ public sealed class OutageViewModel : INotifyPropertyChanged
 
     /// <summary>The site wants a person to pass its check; raised once until a schedule comes through again.</summary>
     public event Action? CheckRequired;
+
+    /// <summary>The schedule or the minute changed, for whoever shows it elsewhere.</summary>
+    public event Action? Changed;
 
     public ICommand RefreshCommand { get; }
 
@@ -441,6 +445,12 @@ public sealed class OutageViewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// The schedule of the chosen address while the site shows one, for the overview. Only for a house on one queue: with
+    /// several, the forecast would depend on which flat is meant.
+    /// </summary>
+    public OutageSchedule? FollowedSchedule => HasAddress && _schedule is { Queues.Count: 1, ScheduleShown: true } schedule ? schedule : null;
+
     /// <summary>One line for the overview: what the schedule says now and next.</summary>
     public string? OverviewText => HasSchedule && Outlook is { } o ? $"За графіком: {OutageTexts.Label(o.Current).ToLower(Ukrainian)} · {o.NextText}" : null;
 
@@ -456,7 +466,7 @@ public sealed class OutageViewModel : INotifyPropertyChanged
 
     public string ComparisonHint => !CanCompare
         ? "Журнал не ведеться, тож порівняти графік із фактом не вийде."
-        : "Верхня смуга: останній графік на сайті для цього дня. Нижня: чи бачила станція мережу. Сірим позначено час, коли застосунок не був підключений до станції.";
+        : "Верхня смуга: останній графік на сайті для цього дня. Нижня: що бачила станція, своїми кольорами. Де факт розійшовся з графіком, він підсвічений. Тонка лінія: застосунок не був підключений до станції.";
 
     private static DateOnly Today => KyivTime.DayOf(DateTime.UtcNow);
 
@@ -484,6 +494,7 @@ public sealed class OutageViewModel : INotifyPropertyChanged
 
         _clock.Start();
         _refreshTimer.Start();
+        Changed?.Invoke();
         if (HasAddress)
         {
             _ = RefreshAsync();
@@ -517,6 +528,7 @@ public sealed class OutageViewModel : INotifyPropertyChanged
                 _schedule = schedule;
                 _scheduleSeenUtc = now;
                 _checkAnnounced = false;
+                Changed?.Invoke();
                 if (_store is { } store)
                 {
                     try
@@ -647,6 +659,7 @@ public sealed class OutageViewModel : INotifyPropertyChanged
             _schedule = null;
             _scheduleSeenUtc = null;
             _comparison = [];
+            Changed?.Invoke();
         }
 
         IsEditing = false;
@@ -806,7 +819,7 @@ public sealed class OutageViewModel : INotifyPropertyChanged
                     result.Add(new ComparisonRow(
                         back == 0 ? $"Сьогодні, {OutageTexts.DayTitle(day)}" : back == 1 ? $"Учора, {OutageTexts.DayTitle(day)}" : CapitalFirst(OutageTexts.DayTitle(day)),
                         plan is null ? [] : StripSegment.FromSlots(plan),
-                        StripSegment.FromFact(comparison.Fact, back == 0 ? nowMinute : KyivTime.MinutesPerDay),
+                        StripSegment.FromFact(comparison.Verdicts, back == 0 ? nowMinute : KyivTime.MinutesPerDay),
                         nowMinute,
                         comparison.Summary,
                         versions.Count > 1

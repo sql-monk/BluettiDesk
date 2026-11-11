@@ -14,6 +14,16 @@ public enum StripKind
     On,
     Off,
     Maybe,
+
+    /// <summary>What the station saw, where it agrees with the schedule or there is none to compare.</summary>
+    FactOn,
+    FactOff,
+
+    /// <summary>No power while the schedule promised it.</summary>
+    UnplannedOff,
+
+    /// <summary>Power while the schedule said there would be none.</summary>
+    UnexpectedOn,
 }
 
 /// <summary>A stretch of a day in Kyiv wall-clock minutes, [From, To).</summary>
@@ -29,11 +39,13 @@ public readonly record struct StripSegment(int From, int To, StripKind Kind)
         }, OutageSchedule.SlotMinutes);
 
     /// <summary>What the station saw, up to <paramref name="untilMinute"/>: later minutes have not happened yet and are left out.</summary>
-    public static IReadOnlyList<StripSegment> FromFact(IReadOnlyList<GridFact> minutes, int untilMinute) =>
+    public static IReadOnlyList<StripSegment> FromFact(IReadOnlyList<FactVerdict> minutes, int untilMinute) =>
         Merge(Math.Clamp(untilMinute, 0, minutes.Count), i => minutes[i] switch
         {
-            GridFact.On => StripKind.On,
-            GridFact.Off => StripKind.Off,
+            FactVerdict.On => StripKind.FactOn,
+            FactVerdict.Off => StripKind.FactOff,
+            FactVerdict.UnplannedOff => StripKind.UnplannedOff,
+            FactVerdict.UnexpectedOn => StripKind.UnexpectedOn,
             _ => StripKind.Unknown,
         }, 1);
 
@@ -58,25 +70,45 @@ public readonly record struct StripSegment(int From, int To, StripKind Kind)
 }
 
 /// <summary>
-/// A day as a horizontal strip: amber with power, slate blue without, hatched where an outage is possible, grey where
-/// nothing is known. A marker shows the current time; hovering names the stretch under the pointer.
+/// How far the charge of the station carries, in minutes of the strip's day: it lasts over [From, Until), and the grid is
+/// still missing over [Until, ShortUntil) when the charge runs out first.
+/// </summary>
+public sealed record ReachSpan(int From, int Until, int ShortUntil, string LastsText, string ShortText);
+
+/// <summary>
+/// A day as a horizontal strip. The schedule is amber with power, slate blue without, hatched where an outage is
+/// possible and grey where nothing is known. What the station saw has its own colours, so that a past day never looks
+/// like a schedule: light and dark neutrals where it agrees with the schedule, and two bright ones where it does not.
+/// A marker shows the current time, an optional line under the strip how far the charge of the station carries, and
+/// hovering names the stretch under the pointer.
 /// </summary>
 public sealed class OutageStrip : FrameworkElement
 {
-    public static readonly DependencyProperty SegmentsProperty = Register(nameof(Segments), null);
+    public static readonly DependencyProperty SegmentsProperty = Register<IReadOnlyList<StripSegment>?>(nameof(Segments), null);
     public static readonly DependencyProperty NowMinuteProperty = Register(nameof(NowMinute), -1);
     public static readonly DependencyProperty ShowAxisProperty = Register(nameof(ShowAxis), false);
-    public static readonly DependencyProperty OnBrushProperty = Register(nameof(OnBrush), Brushes.Green);
-    public static readonly DependencyProperty OffBrushProperty = Register(nameof(OffBrush), Brushes.Red);
-    public static readonly DependencyProperty MaybeBrushProperty = Register(nameof(MaybeBrush), Brushes.Orange);
-    public static readonly DependencyProperty UnknownBrushProperty = Register(nameof(UnknownBrush), Brushes.LightGray);
-    public static readonly DependencyProperty MarkerBrushProperty = Register(nameof(MarkerBrush), Brushes.Black);
-    public static readonly DependencyProperty TextBrushProperty = Register(nameof(TextBrush), Brushes.Gray);
+    public static readonly DependencyProperty UnknownAsTrackProperty = Register(nameof(UnknownAsTrack), false);
+    public static readonly DependencyProperty ReachProperty = Register<ReachSpan?>(nameof(Reach), null);
+    public static readonly DependencyProperty OnBrushProperty = Register<Brush>(nameof(OnBrush), Brushes.Goldenrod);
+    public static readonly DependencyProperty OffBrushProperty = Register<Brush>(nameof(OffBrush), Brushes.SteelBlue);
+    public static readonly DependencyProperty MaybeBrushProperty = Register<Brush>(nameof(MaybeBrush), Brushes.LightSteelBlue);
+    public static readonly DependencyProperty UnknownBrushProperty = Register<Brush>(nameof(UnknownBrush), Brushes.LightGray);
+    public static readonly DependencyProperty FactOnBrushProperty = Register<Brush>(nameof(FactOnBrush), Brushes.Silver);
+    public static readonly DependencyProperty FactOffBrushProperty = Register<Brush>(nameof(FactOffBrush), Brushes.DimGray);
+    public static readonly DependencyProperty UnplannedOffBrushProperty = Register<Brush>(nameof(UnplannedOffBrush), Brushes.OrangeRed);
+    public static readonly DependencyProperty UnexpectedOnBrushProperty = Register<Brush>(nameof(UnexpectedOnBrush), Brushes.DeepSkyBlue);
+    public static readonly DependencyProperty ReachBrushProperty = Register<Brush>(nameof(ReachBrush), Brushes.Gray);
+    public static readonly DependencyProperty ShortBrushProperty = Register<Brush>(nameof(ShortBrush), Brushes.Red);
+    public static readonly DependencyProperty MarkerBrushProperty = Register<Brush>(nameof(MarkerBrush), Brushes.Black);
+    public static readonly DependencyProperty TextBrushProperty = Register<Brush>(nameof(TextBrush), Brushes.Gray);
     public static readonly DependencyProperty BarHeightProperty = Register(nameof(BarHeight), 28.0);
     public static readonly DependencyProperty EmptyTextProperty = Register(nameof(EmptyText), string.Empty);
 
     private const double AxisHeight = 18;
     private const double Gap = 1;
+    private const double TrackHeight = 4;
+    private const double ReachGap = 5;
+    private const double ReachThickness = 4;
     private readonly ToolTip _tip = new() { Placement = PlacementMode.Relative };
 
     public OutageStrip()
@@ -94,6 +126,11 @@ public sealed class OutageStrip : FrameworkElement
 
     public bool ShowAxis { get => (bool)GetValue(ShowAxisProperty); set => SetValue(ShowAxisProperty, value); }
 
+    /// <summary>Draws unknown stretches as a thin track instead of a bar: for what the station saw, nothing was recorded there.</summary>
+    public bool UnknownAsTrack { get => (bool)GetValue(UnknownAsTrackProperty); set => SetValue(UnknownAsTrackProperty, value); }
+
+    public ReachSpan? Reach { get => (ReachSpan?)GetValue(ReachProperty); set => SetValue(ReachProperty, value); }
+
     public Brush OnBrush { get => (Brush)GetValue(OnBrushProperty); set => SetValue(OnBrushProperty, value); }
 
     public Brush OffBrush { get => (Brush)GetValue(OffBrushProperty); set => SetValue(OffBrushProperty, value); }
@@ -101,6 +138,18 @@ public sealed class OutageStrip : FrameworkElement
     public Brush MaybeBrush { get => (Brush)GetValue(MaybeBrushProperty); set => SetValue(MaybeBrushProperty, value); }
 
     public Brush UnknownBrush { get => (Brush)GetValue(UnknownBrushProperty); set => SetValue(UnknownBrushProperty, value); }
+
+    public Brush FactOnBrush { get => (Brush)GetValue(FactOnBrushProperty); set => SetValue(FactOnBrushProperty, value); }
+
+    public Brush FactOffBrush { get => (Brush)GetValue(FactOffBrushProperty); set => SetValue(FactOffBrushProperty, value); }
+
+    public Brush UnplannedOffBrush { get => (Brush)GetValue(UnplannedOffBrushProperty); set => SetValue(UnplannedOffBrushProperty, value); }
+
+    public Brush UnexpectedOnBrush { get => (Brush)GetValue(UnexpectedOnBrushProperty); set => SetValue(UnexpectedOnBrushProperty, value); }
+
+    public Brush ReachBrush { get => (Brush)GetValue(ReachBrushProperty); set => SetValue(ReachBrushProperty, value); }
+
+    public Brush ShortBrush { get => (Brush)GetValue(ShortBrushProperty); set => SetValue(ShortBrushProperty, value); }
 
     public Brush MarkerBrush { get => (Brush)GetValue(MarkerBrushProperty); set => SetValue(MarkerBrushProperty, value); }
 
@@ -115,11 +164,15 @@ public sealed class OutageStrip : FrameworkElement
         StripKind.On => "Світло є",
         StripKind.Off => "Світла немає",
         StripKind.Maybe => "Можливе відключення",
+        StripKind.FactOn => "Світло було",
+        StripKind.FactOff => "Світла не було",
+        StripKind.UnplannedOff => "Світла не було, хоч за графіком мало бути",
+        StripKind.UnexpectedOn => "Світло було, хоч за графіком не мало",
         _ => "Немає даних",
     };
 
     protected override Size MeasureOverride(Size availableSize) =>
-        new(double.IsInfinity(availableSize.Width) ? 300 : availableSize.Width, BarHeight + (ShowAxis ? AxisHeight : 0));
+        new(double.IsInfinity(availableSize.Width) ? 300 : availableSize.Width, BarHeight + ReachHeight + (ShowAxis ? AxisHeight : 0));
 
     protected override void OnRender(DrawingContext dc)
     {
@@ -146,14 +199,31 @@ public sealed class OutageStrip : FrameworkElement
                     right = left + 0.5;
                 }
 
-                var brush = segment.Kind switch
+                if (segment.Kind == StripKind.Unknown && UnknownAsTrack)
                 {
-                    StripKind.On => OnBrush,
-                    StripKind.Off => OffBrush,
-                    StripKind.Maybe => MaybeBrush,
-                    _ => UnknownBrush,
-                };
-                dc.DrawRoundedRectangle(brush, null, new Rect(left, 0, right - left, bar), 3, 3);
+                    dc.DrawRoundedRectangle(UnknownBrush, null, new Rect(left, (bar - TrackHeight) / 2, right - left, TrackHeight), TrackHeight / 2, TrackHeight / 2);
+                    continue;
+                }
+
+                dc.DrawRoundedRectangle(BrushOf(segment.Kind), null, new Rect(left, 0, right - left, bar), 3, 3);
+            }
+        }
+
+        if (Reach is { } reach)
+        {
+            var top = bar + ReachGap;
+            Line(reach.From, reach.Until, ReachBrush);
+            Line(reach.Until, reach.ShortUntil, ShortBrush);
+
+            void Line(int from, int to, Brush brush)
+            {
+                from = Math.Clamp(from, 0, KyivTime.MinutesPerDay);
+                to = Math.Clamp(to, 0, KyivTime.MinutesPerDay);
+                if (to > from)
+                {
+                    var left = X(from) + Gap;
+                    dc.DrawRoundedRectangle(brush, null, new Rect(left, top, Math.Max(ReachThickness, X(to) - Gap - left), ReachThickness), ReachThickness / 2, ReachThickness / 2);
+                }
             }
         }
 
@@ -175,7 +245,7 @@ public sealed class OutageStrip : FrameworkElement
                 var label = Text($"{hour:00}", 11);
                 var x = X(hour * 60);
                 var left = hour == 0 ? x : hour == 24 ? x - label.Width : x - label.Width / 2;
-                dc.DrawText(label, new Point(left, bar + 3));
+                dc.DrawText(label, new Point(left, bar + ReachHeight + 3));
             }
         }
 
@@ -187,17 +257,42 @@ public sealed class OutageStrip : FrameworkElement
         base.OnMouseMove(e);
         var position = e.GetPosition(this);
         var minute = (int)Math.Clamp(position.X / Math.Max(1, ActualWidth) * KyivTime.MinutesPerDay, 0, KyivTime.MinutesPerDay - 1);
-        var segment = Segments?.FirstOrDefault(s => s.From <= minute && minute < s.To);
-        _tip.Content = segment is { } found && found.To > found.From
-            ? $"{OutageTexts.Time(found.From)}–{OutageTexts.Time(found.To)} · {Describe(found.Kind)}"
-            : "Немає даних";
+        string text;
+        if (Reach is { } reach && position.Y > BarHeight + 1 && position.Y < BarHeight + ReachHeight + 2
+            && minute >= reach.From && minute < Math.Max(reach.Until, reach.ShortUntil))
+        {
+            text = minute < reach.Until ? reach.LastsText : reach.ShortText;
+        }
+        else
+        {
+            var segment = Segments?.FirstOrDefault(s => s.From <= minute && minute < s.To);
+            text = segment is { } found && found.To > found.From
+                ? $"{OutageTexts.Time(found.From)}–{OutageTexts.Time(found.To)} · {Describe(found.Kind)}"
+                : "Немає даних";
+        }
+
+        _tip.Content = text;
         _tip.HorizontalOffset = position.X + 12;
         _tip.VerticalOffset = -28;
     }
 
-    private static DependencyProperty Register(string name, object? fallback) =>
-        DependencyProperty.Register(name, fallback?.GetType() == typeof(int) ? typeof(int) : fallback?.GetType() == typeof(double) ? typeof(double) : fallback?.GetType() == typeof(bool) ? typeof(bool) : fallback is Brush ? typeof(Brush) : fallback is string ? typeof(string) : typeof(IReadOnlyList<StripSegment>), typeof(OutageStrip),
+    private static DependencyProperty Register<T>(string name, T fallback) =>
+        DependencyProperty.Register(name, typeof(T), typeof(OutageStrip),
             new FrameworkPropertyMetadata(fallback, FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.AffectsMeasure));
+
+    private double ReachHeight => Reach is null ? 0 : ReachGap + ReachThickness;
+
+    private Brush BrushOf(StripKind kind) => kind switch
+    {
+        StripKind.On => OnBrush,
+        StripKind.Off => OffBrush,
+        StripKind.Maybe => MaybeBrush,
+        StripKind.FactOn => FactOnBrush,
+        StripKind.FactOff => FactOffBrush,
+        StripKind.UnplannedOff => UnplannedOffBrush,
+        StripKind.UnexpectedOn => UnexpectedOnBrush,
+        _ => UnknownBrush,
+    };
 
     private Brush Background() => (Brush?)TryFindResource("CardBackgroundFillColorDefaultBrush") ?? Brushes.White;
 

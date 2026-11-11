@@ -176,6 +176,12 @@
             <Setter Property="OffBrush" Value="{DynamicResource OutageOffBrush}" />
             <Setter Property="MaybeBrush" Value="{DynamicResource OutageMaybeBrush}" />
             <Setter Property="UnknownBrush" Value="{DynamicResource OutageUnknownBrush}" />
+            <Setter Property="FactOnBrush" Value="{DynamicResource OutageFactOnBrush}" />
+            <Setter Property="FactOffBrush" Value="{DynamicResource OutageFactOffBrush}" />
+            <Setter Property="UnplannedOffBrush" Value="{DynamicResource OutageUnplannedOffBrush}" />
+            <Setter Property="UnexpectedOnBrush" Value="{DynamicResource OutageUnexpectedOnBrush}" />
+            <Setter Property="ReachBrush" Value="{DynamicResource OutageReachBrush}" />
+            <Setter Property="ShortBrush" Value="{DynamicResource StatusCriticalBrush}" />
             <Setter Property="MarkerBrush" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="TextBrush" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         </Style>

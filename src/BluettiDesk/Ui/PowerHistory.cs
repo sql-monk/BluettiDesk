@@ -32,6 +32,13 @@ public sealed class PowerHistory
         _points.InsertRange(0, older.Where(p => p.Time < firstKnown));
     }
 
+    /// <summary>The mean output over the last <paramref name="span"/>, or null without readings in it.</summary>
+    public double? MeanOutput(DateTime now, TimeSpan span)
+    {
+        var recent = _points.Where(p => p.Time > now - span && p.Time <= now).ToList();
+        return recent.Count == 0 ? null : recent.Average(p => p.OutputWatts);
+    }
+
     public ChartData ToChartData(DateTime now) => new(
         now - Window,
         now,

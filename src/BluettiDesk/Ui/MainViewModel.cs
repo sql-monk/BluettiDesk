@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows.Input;
 using System.Windows.Threading;
 using BluettiDesk.Core.Journal;
+using BluettiDesk.Core.Outages;
 using BluettiDesk.Core.Station;
 using BluettiDesk.Outages;
 
@@ -20,6 +21,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");
     private static readonly TimeSpan CommandErrorDuration = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan AlertQuietPeriod = TimeSpan.FromMinutes(15);
+
+    /// <summary>The load of the forecast is the mean of this long, so that a kettle does not swing it.</summary>
+    private static readonly TimeSpan LoadWindow = TimeSpan.FromMinutes(10);
 
     private readonly StationMonitor _monitor;
     private readonly Dispatcher _dispatcher;
@@ -60,6 +64,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _monitor.StatusUpdated += status => _dispatcher.BeginInvoke(() => OnStatus(status));
         _monitor.ConnectionChanged += state => _dispatcher.BeginInvoke(() => OnConnection(state));
         ToggleConnectionCommand = new RelayCommand(ToggleConnection);
+
+        if (outages is not null)
+        {
+            outages.Changed += RefreshBindings;
+        }
 
         if (journal is not null)
         {
@@ -336,6 +345,72 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ? $"Прошивка: {string.Join(" · ", battery.InverterFirmware)} · BMS {battery.BatteryFirmware}"
         : string.Empty;
 
+    // ---------- today's schedule and the charge, on the overview ----------
+
+    /// <summary>Only while the app follows the schedule of an address.</summary>
+    public bool BackupVisible => Outages?.FollowedSchedule is not null;
+
+    public string TodayTitle => $"Сьогодні, {OutageTexts.DayTitle(KyivTime.DayOf(DateTime.UtcNow))}";
+
+    public IReadOnlyList<StripSegment> TodaySegments =>
+        Outages?.FollowedSchedule is { } schedule && schedule.SlotsFor(KyivTime.DayOf(DateTime.UtcNow), schedule.Queues[0].Id) is { } slots
+            ? StripSegment.FromSlots(slots)
+            : [];
+
+    public int TodayNowMinute => KyivTime.MinuteOfDay(DateTime.UtcNow);
+
+    public string BackupKey => Backup()?.Forecast?.Reaches switch
+    {
+        true => "Good",
+        false => "Critical",
+        _ => "Off",
+    };
+
+    public string BackupTitle => Backup() switch
+    {
+        null => "Немає даних станції",
+        { Forecast: { } forecast } => forecast.Title,
+        _ => "Графік не каже, що зараз",
+    };
+
+    public string? BackupMargin => Backup()?.Forecast?.MarginText;
+
+    public string BackupDetail => Backup() switch
+    {
+        null => "Чи вистачить заряду до ввімкнення світла, буде видно, коли станція на зв'язку.",
+        { Forecast: { } forecast } state => forecast.Detail(state.Soc, state.Load, state.Charging),
+        var state => $"Заряду {state.Soc} % при споживанні ≈ {state.Load.ToString("0", Ukrainian)} Вт вистачить на ≈ {OutageTexts.Duration(state.Runtime)}.",
+    };
+
+    /// <summary>The line under today's strip: how far the charge carries, and the stretch it does not cover.</summary>
+    public ReachSpan? TodayReach
+    {
+        get
+        {
+            if (Backup()?.Forecast is not { Case: not BackupCase.NoOutage } forecast)
+            {
+                return null;
+            }
+
+            var today = KyivTime.DayOf(forecast.NowUtc);
+            var from = KyivTime.MinuteFrom(today, forecast.FromUtc);
+            if (from >= KyivTime.MinutesPerDay)
+            {
+                return null;
+            }
+
+            var empty = KyivTime.MinuteFrom(today, forecast.EmptyUtc);
+            var back = forecast.UntilUtc ?? forecast.KnownUntilUtc;
+            var lasts = forecast.Case == BackupCase.NextOutage
+                ? $"Якщо світло зникне о {OutageTexts.Time(KyivTime.MinuteOfDay(forecast.FromUtc))}, заряду вистачить {forecast.Upto(forecast.EmptyUtc)}"
+                : $"Заряду вистачить {forecast.Upto(forecast.EmptyUtc)}";
+            return forecast.Reaches == false
+                ? new ReachSpan(from, empty, KyivTime.MinuteFrom(today, back), lasts,
+                    $"Станція вже розряджена, а світла ще немає: з {OutageTexts.Time(KyivTime.MinuteOfDay(forecast.EmptyUtc))} {forecast.Upto(back)}")
+                : new ReachSpan(from, empty, empty, lasts, string.Empty);
+        }
+    }
+
     public void Start()
     {
         _monitor.Start();
@@ -343,6 +418,27 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             _ = LoadRecentHistoryAsync(journal);
         }
+    }
+
+    /// <summary>
+    /// The forecast as of now: the present charge at the mean load of the last minutes, against the schedule. Null while
+    /// there is no station data to forecast from.
+    /// </summary>
+    private BackupState? Backup()
+    {
+        if (Outages?.FollowedSchedule is not { } schedule || !IsConnected || _status is not { } status)
+        {
+            return null;
+        }
+
+        var load = _history.MeanOutput(DateTime.Now, LoadWindow) ?? status.AcOutputWatts + status.DcOutputWatts;
+        var runtime = BatteryRuntime.Minutes(status.SocPercent, load, status.AcOutputOn);
+        return new BackupState(
+            BackupForecast.For(schedule, schedule.Queues[0].Id, DateTime.UtcNow, MainsPresent, runtime),
+            status.SocPercent,
+            load,
+            runtime,
+            status.Activity == BatteryActivity.Charging);
     }
 
     private static string Activity(BatteryActivity activity) => activity switch
@@ -528,5 +624,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 }
 
 public sealed record AlertView(string Title, string Detail, string Key);
+
+internal sealed record BackupState(BackupForecast? Forecast, int Soc, double Load, int Runtime, bool Charging);
 
 public sealed record CellView(string Text, string Key);

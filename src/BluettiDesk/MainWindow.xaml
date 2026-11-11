@@ -140,6 +140,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <!-- State of charge -->
@@ -240,8 +241,81 @@
                             </Grid>
                         </Border>
 
+                        <!-- Today's schedule, and whether the charge lasts until the grid is back -->
+                        <Border Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource Card}" Visibility="{Binding BackupVisible, Converter={StaticResource BoolToVisible}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid Width="40" Height="40" Margin="0,0,14,0" VerticalAlignment="Top">
+                                    <Ellipse>
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="{DynamicResource StatusOffBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding BackupKey}" Value="Good">
+                                                        <Setter Property="Fill" Value="{DynamicResource StatusGoodBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding BackupKey}" Value="Critical">
+                                                        <Setter Property="Fill" Value="{DynamicResource StatusCriticalBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="&#xE83F;" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding BackupKey}" Value="Good">
+                                                        <Setter Property="Text" Value="&#xE73E;" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding BackupKey}" Value="Critical">
+                                                        <Setter Property="Text" Value="&#xE7BA;" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource CardTitle}" Text="Заряд і графік відключень" />
+                                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                        <Run Text="{Binding BackupTitle, Mode=OneWay}" FontSize="18" FontWeight="SemiBold" />
+                                        <Run Text="  " />
+                                        <Run Text="{Binding BackupMargin, Mode=OneWay}" FontSize="15" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding BackupDetail}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,12,0,0">
+                                    <TextBlock Text="{Binding TodayTitle}" Style="{StaticResource CardTitle}" Margin="0,0,0,4" />
+                                    <outages:OutageStrip Segments="{Binding TodaySegments}" NowMinute="{Binding TodayNowMinute}" Reach="{Binding TodayReach}"
+                                                         ShowAxis="True" BarHeight="18" EmptyText="На сьогодні графіка немає" />
+                                </StackPanel>
+                                <WrapPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                                    <Rectangle Width="12" Height="12" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageOnBrush}" Margin="0,0,6,0" />
+                                    <TextBlock Text="Світло є" Style="{StaticResource Detail}" Margin="0,0,14,0" />
+                                    <Rectangle Width="12" Height="12" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageOffBrush}" Margin="0,0,6,0" />
+                                    <TextBlock Text="Світла немає" Style="{StaticResource Detail}" Margin="0,0,14,0" />
+                                    <Rectangle Width="12" Height="12" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageMaybeBrush}" Margin="0,0,6,0" />
+                                    <TextBlock Text="Можливе відключення" Style="{StaticResource Detail}" Margin="0,0,14,0" />
+                                    <Rectangle Width="16" Height="4" RadiusX="2" RadiusY="2" Fill="{DynamicResource OutageReachBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Вистачить заряду" Style="{StaticResource Detail}" Margin="0,0,14,0" />
+                                    <Rectangle Width="16" Height="4" RadiusX="2" RadiusY="2" Fill="{DynamicResource StatusCriticalBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Бракує заряду" Style="{StaticResource Detail}" />
+                                </WrapPanel>
+                            </Grid>
+                        </Border>
+
                         <!-- Power of the last half hour -->
-                        <Border Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource Card}">
+                        <Border Grid.Row="3" Grid.ColumnSpan="3" Style="{StaticResource Card}">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
@@ -268,7 +342,7 @@
                         </Border>
 
                         <!-- Settings -->
-                        <Border Grid.Row="3" Grid.Column="0" Style="{StaticResource Card}">
+                        <Border Grid.Row="4" Grid.Column="0" Style="{StaticResource Card}">
                             <StackPanel>
                                 <TextBlock Text="Налаштування" Style="{StaticResource SectionTitle}" />
                                 <TextBlock Text="Режим заряду" Style="{StaticResource CardTitle}" Margin="0,12,0,4" />
@@ -362,7 +436,7 @@
                         </Border>
 
                         <!-- Battery -->
-                        <Border Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource StatusCard}" Tag="{Binding BatteryCardKey}">
+                        <Border Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource StatusCard}" Tag="{Binding BatteryCardKey}">
                             <StackPanel>
                                 <TextBlock Text="Батарея" Style="{StaticResource SectionTitle}" />
                                 <UniformGrid Columns="4" Margin="0,12,0,0">
@@ -588,7 +662,20 @@
                             <Border Style="{StaticResource Card}" Visibility="{Binding ScheduleVisible, Converter={StaticResource BoolToVisible}}">
                                 <StackPanel>
                                     <TextBlock Text="Графік і факт" Style="{StaticResource SectionTitle}" />
-                                    <TextBlock Text="{Binding ComparisonHint}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="0,2,0,8" />
+                                    <TextBlock Text="{Binding ComparisonHint}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="0,2,0,6" />
+                                    <WrapPanel Margin="0,0,0,6">
+                                        <TextBlock Text="Станція:" Style="{StaticResource Detail}" FontWeight="SemiBold" Margin="0,0,10,0" />
+                                        <Rectangle Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageFactOnBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Світло було" Style="{StaticResource Detail}" Margin="0,0,16,0" />
+                                        <Rectangle Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageFactOffBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Світла не було" Style="{StaticResource Detail}" Margin="0,0,16,0" />
+                                        <Rectangle Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageUnplannedOffBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Не було, хоч за графіком мало бути" Style="{StaticResource Detail}" Margin="0,0,16,0" />
+                                        <Rectangle Width="14" Height="14" RadiusX="3" RadiusY="3" Fill="{DynamicResource OutageUnexpectedOnBrush}" Margin="0,0,6,0" />
+                                        <TextBlock Text="Було, хоч за графіком не мало" Style="{StaticResource Detail}" Margin="0,0,16,0" />
+                                        <Rectangle Width="14" Height="4" RadiusX="2" RadiusY="2" Fill="{DynamicResource OutageUnknownBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBlock Text="Немає даних" Style="{StaticResource Detail}" />
+                                    </WrapPanel>
                                     <TextBlock Text="Порівняння з'явиться, коли в журналі будуть і графік, і дані станції." Style="{StaticResource Detail}"
                                                Visibility="{Binding ComparisonEmpty, Converter={StaticResource BoolToVisible}}" />
                                     <ItemsControl ItemsSource="{Binding Comparison}" Focusable="False">
@@ -610,7 +697,7 @@
                                                                              EmptyText="Графіка на цей день не збережено" Margin="0,0,0,6" />
                                                         <TextBlock Grid.Row="1" Text="Станція" Style="{StaticResource CardTitle}" VerticalAlignment="Top" Margin="0,3,0,0" />
                                                         <outages:OutageStrip Grid.Row="1" Grid.Column="1" Segments="{Binding Fact}" NowMinute="{Binding NowMinute}" BarHeight="20"
-                                                                             ShowAxis="True" EmptyText="Даних станції немає" />
+                                                                             ShowAxis="True" UnknownAsTrack="True" EmptyText="Даних станції немає" />
                                                     </Grid>
                                                     <TextBlock Text="{Binding Summary}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="70,4,0,0" />
                                                     <TextBlock Text="{Binding Versions}" Style="{StaticResource Detail}" TextWrapping="Wrap" Margin="70,2,0,0"
